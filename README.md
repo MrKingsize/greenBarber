@@ -14,6 +14,8 @@ Overall Architecture
 
 Link to the Architecture Diagram:
 https://1drv.ms/u/s!AtIa6l6rtp56qzVm6Xl4qO35xify?e=c8eezd
+Link to animated simulation of the harvesting idea:
+https://drive.google.com/file/d/14uQVEL2jJQ8OUNeYXhHj3-7X3vHlUGO4/view?usp=drive_link
 
 
 
