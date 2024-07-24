@@ -5,7 +5,7 @@ This folder holds the code for the Aromatics Recognizer. The Aromatics Recognize
 # Requirements
 - Python 3.12.4 or higher;
 - Pip 24.1.2 or higher;
-- Dependencies listed in the `requirements.txt` file.
+- Dependencies listed in the [`requirements.txt`](./requirements.txt) file.
 
 # Setup
 
@@ -17,7 +17,7 @@ pip install -r requirements.txt
 
 # Usage
 
-First, make sure that you have files (aromatic_n.png and notaromatic_n.png) in the ./train folder.
-Second, run the trainer.ipynb notebook to train the model.
+First, make sure that you have files (aromatic_n.png and notaromatic_n.png) in the [`/train`](./train) folder.
+Second, run the [`trainer.ipynb`](./trainer.ipynb) notebook to train the model.
 Third, evaluate results.
-Fourth, use the model to predict new images using recognizer.ipynb notebook.
+Fourth, use the model to predict new images using [`recognizer.ipynb`](./recognizer.ipynb) notebook.
