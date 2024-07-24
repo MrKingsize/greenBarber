@@ -14,3 +14,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+# Usage
+
+First, make sure that you have files (aromatic_n.png and notaromatic_n.png) in the ./train folder.
