@@ -18,3 +18,6 @@ pip install -r requirements.txt
 # Usage
 
 First, make sure that you have files (aromatic_n.png and notaromatic_n.png) in the ./train folder.
+Second, run the trainer.ipynb notebook to train the model.
+Third, evaluate results.
+Fourth, use the model to predict new images using recognizer.ipynb notebook.
