@@ -166,5 +166,5 @@ cython_debug/
 
 # Project specific
 dataset_aromatic_vs_notaromatic
-dataset_aromatic_vs_notaromatic_labels.npy
-dataset_aromatic_vs_notaromatic_photos.npy
+aromatic_vs_notaromatic_labels.npy
+aromatic_vs_notaromatic_photos.npy
