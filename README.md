@@ -27,6 +27,7 @@ https://drive.google.com/file/d/14uQVEL2jJQ8OUNeYXhHj3-7X3vHlUGO4/view?usp=drive
 - 2.
 - 3. [CutterModule](./modulo_corte_mega2560proMini/) - C++ code for the cutting module. Project designed to run on an atmega2560 pro mini using the Arduino library environment
 - 4. <3-axis-bridge_module> - C++ code for the 3-axis-bridge control
+- 4. [AromaticsTracker](./AromaticsTracker/)
 - 5. [AromaticsRecognizer](./AromaticsRecognizer/)
 
 ## Module Workflow
