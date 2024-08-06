@@ -1,0 +1,6 @@
+{
+    "name": "greenbarber-jetson-nano-devcontainer",
+    "dockerComposeFile": "docker-compose.yml",
+    "workspaceFolder": "/home",
+    "service": "nvidia-l4t-tensorflow"
+}
