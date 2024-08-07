@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"name": "controlo-motores",
+			"path": "3-axis-bridge"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"type_traits": "cpp",
+			"cmath": "cpp"
+		}
+	}
+}
