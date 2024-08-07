@@ -2,5 +2,12 @@
     "name": "greenbarber-jetson-nano-devcontainer",
     "dockerComposeFile": "docker-compose.yml",
     "workspaceFolder": "/home",
-    "service": "nvidia-l4t-tensorflow"
+    "service": "nvidia-l4t-tensorflow",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python"
+            ]
+        }
+    }
 }
