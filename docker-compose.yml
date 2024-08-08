@@ -10,7 +10,7 @@ services:
     # networks:
     #   - host
     volumes:
-      - ..:/home
+      - .:/home
 
 # networks:
 #   host:

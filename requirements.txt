@@ -1,0 +1,5 @@
+#ipykernel
+keras==2.7.0
+#matplotlib
+pillow
+tensorflow-hub==0.7.0
