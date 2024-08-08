@@ -2,17 +2,10 @@
 
 services:
   nvidia-l4t-tensorflow:
-    # image: nvcr.io/nvidia/l4t-tensorflow:r32.7.1-tf2.7-py3
     build:
       context: .
       dockerfile: Dockerfile
     command: tail -f /dev/null
-    # networks:
-    #   - host
     volumes:
       - .:/home
-
-# networks:
-#   host:
-#     external: true
     
