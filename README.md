@@ -30,6 +30,10 @@ https://drive.google.com/file/d/14uQVEL2jJQ8OUNeYXhHj3-7X3vHlUGO4/view?usp=drive
 - 4. [AromaticsTracker](./AromaticsTracker/)
 - 5. [AromaticsRecognizer](./AromaticsRecognizer/)
 
+## Green Barber Aggregated Workflow
+![Flow Chart Diagram](/flowChart.png)
+- [Link to Flow Chart](https://1drv.ms/u/s!AtIa6l6rtp56t1KFMW9ak1gB99wk?e=hhpVGZ)
+
 ## Module Workflow
 
 Module workflow: receive harvest instruction -> turn on vacuum, blades and rotation -> harvesting -> stop vacuum, blades and rotation -> load harvest to the bag!
