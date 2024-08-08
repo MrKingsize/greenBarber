@@ -16,3 +16,18 @@ python3 capture.py --device_id <device_id> --output <output_path> # Capture imag
 ```
 
 Check the help message for more information on how to use this program.
+
+## Install v4l-utils
+
+```bash
+# Install v4l-utils
+sudo apt install v4l-utils
+# List attached devices
+$ v4l2-ctl --list-devices
+# List all info about a given device
+$ v4l2-ctl --all -d /dev/videoX
+# Where X is the device number. For example:
+$ v4l2-ctl --all -d /dev/video0
+# List the cameras pixel formats, images sizes, frame rates
+$ v4l2-ctl --list-formats-ext -d /dev/videoX
+```
