@@ -1,0 +1,11 @@
+---
+
+services:
+  nvidia-l4t-tensorflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: tail -f /dev/null
+    volumes:
+      - .:/home
+    
