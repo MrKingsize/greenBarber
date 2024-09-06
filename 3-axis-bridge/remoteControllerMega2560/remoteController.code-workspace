@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"name": "remoteControllerMega2560",
+			"path": "."
+		}
+	],
+	"settings": {}
+}
