@@ -15,13 +15,13 @@
 /****************************** Constants *************************************/
 
 // All modules need to use the same CAN pinout
-#define MCP_CS 10
-#define MCP_INT 9
+#define MCP_CS 18   // A0
+#define MCP_INT 19  // A1
 
 // arduino pro micro 
-// #define SPI_CLK_PIN 15
-// #define SPI_MISO 14
-// #define SPI_MOSI 16
+// #define SPI_CLK_PIN 15 
+// #define SPI_MISO 14 - MCP2515 SO
+// #define SPI_MOSI 16 - MCP2515 SI
 
 #define MESSAGE_LENGTH 3  // Define how many bytes per message
 #define COMMAND_QUEUE_SIZE 5
