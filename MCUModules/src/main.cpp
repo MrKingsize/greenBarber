@@ -13,7 +13,7 @@
 #include "motor.h"
 #include "can.h"
 #include "module_map.h"
-
+#include "PS2X.h"
 
 /*******************************************************************
  * Local Constants
@@ -30,12 +30,17 @@
  ******************************************************************/
 static void calculate_wheels_angles(uint16_t targetAngle, uint16_t *angleRight, uint16_t *angleLeft);
 
+
 /******************************************************************************
  * @brief initial setup system's function
  ******************************************************************************/
 void setup() {
-  init_my_module_id();
-  motors_init();
+	Serial.begin(115200);
+
+	init_my_module_id();
+	motors_init();
+	controller_init();
+
 }
 
 
@@ -44,56 +49,58 @@ void setup() {
  ******************************************************************************/
 void loop()
 {
-  uint8_t myModuleIdx = get_my_module_id();
+	uint8_t myModuleIdx = get_my_module_id();
 
-  while(1){
-    // can pooling messages
-    my_can_receive();
-    
-    //get command
-    command_t cmd;
-    if (dequeue_command(&cmd))
-    {
-      if (myModuleIdx == MOD_SEL_MCU_MAIN)
-      {
-        if (cmd.cmd == CMD_SET_DIRECTION_ANGLE)
-        {
-          uint16_t angleRight, angleLeft;
-          calculate_wheels_angles(cmd.payload, &angleRight, &angleLeft);
+	while(1){
+		// can pooling messages
+		my_can_receive();
 
-          //send can messages
-          my_can_send((uint8_t)MOD_SEL_HW_DIR_RIGHT, (uint8_t)CMD_SET_DIR_ANGLE_RIGHT, angleRight);
-          my_can_send((uint8_t)MOD_SEL_HW_DIR_LEFT, (uint8_t)CMD_SET_DIR_ANGLE_LEFT, angleLeft);
-        }
-        
-      }
-      else if (myModuleIdx == MOD_SEL_HW_DIR_RIGHT)
-      {
+		get_controller_cmd();
+		
+		//get command
+		command_t cmd;
+		if (dequeue_command(&cmd))
+		{
+			if (myModuleIdx == MOD_SEL_MCU_MAIN)
+			{
+				if (cmd.cmd == CMD_SET_DIRECTION_ANGLE)
+				{
+					uint16_t angleRight, angleLeft;
+					calculate_wheels_angles(cmd.payload, &angleRight, &angleLeft);
 
-      }
-      else if (myModuleIdx == MOD_SEL_HW_DIR_LEFT)
-      {
+					//send can messages
+					my_can_send((uint8_t)MOD_SEL_HW_DIR_RIGHT, (uint8_t)CMD_SET_DIR_ANGLE_RIGHT, angleRight);
+					my_can_send((uint8_t)MOD_SEL_HW_DIR_LEFT, (uint8_t)CMD_SET_DIR_ANGLE_LEFT, angleLeft);
+				}
+				
+			}
+			else if (myModuleIdx == MOD_SEL_HW_DIR_RIGHT)
+			{
 
-      }
-      else if (myModuleIdx == MOD_SEL_HW_X_TRACTION_LEFT)
-      {
+			}
+			else if (myModuleIdx == MOD_SEL_HW_DIR_LEFT)
+			{
 
-      }
-      else if (myModuleIdx == MOD_SEL_HW_Y)
-      {
+			}
+			else if (myModuleIdx == MOD_SEL_HW_X_TRACTION_LEFT)
+			{
 
-      }
-      else if (myModuleIdx == MOD_SEL_HW_Z)
-      {
+			}
+			else if (myModuleIdx == MOD_SEL_HW_Y)
+			{
 
-      }
-      else if (myModuleIdx == MOD_SEL_HW_CUT)
-      {
+			}
+			else if (myModuleIdx == MOD_SEL_HW_Z)
+			{
 
-      }
-      
-    }
-  }
+			}
+			else if (myModuleIdx == MOD_SEL_HW_CUT)
+			{
+
+			}
+		
+		}
+	}
   
 }
 
@@ -109,20 +116,22 @@ void loop()
  ******************************************************************************/
 static void calculate_wheels_angles(uint16_t targetAngle, uint16_t *angleRight, uint16_t *angleLeft)
 {
-  int16_t singedTargetAngle = targetAngle - CAN_ANGLE_OFFSET;
-  int16_t singedAngleRight, singedAngleLeft;
-  
-  if (singedTargetAngle > 0)
-  {
-    singedAngleRight = (int16_t)((double)INTERNAL_WHEEL_FACTOR * singedTargetAngle);
-    singedAngleLeft = (int16_t)((double)EXTERNAL_WHEEL_FACTOR * singedTargetAngle);
-  }
-  else
-  {
-    singedAngleRight = (int16_t)((double)EXTERNAL_WHEEL_FACTOR * singedTargetAngle);
-    singedAngleLeft = (int16_t)((double)INTERNAL_WHEEL_FACTOR * singedTargetAngle);
-  }
+	int16_t singedTargetAngle = targetAngle - CAN_ANGLE_OFFSET;
+	int16_t singedAngleRight, singedAngleLeft;
 
-  *angleRight = singedAngleRight + CAN_ANGLE_OFFSET;
-  *angleLeft = singedAngleLeft + CAN_ANGLE_OFFSET;
+	if (singedTargetAngle > 0)
+	{
+		singedAngleRight = (int16_t)((double)INTERNAL_WHEEL_FACTOR * singedTargetAngle);
+		singedAngleLeft = (int16_t)((double)EXTERNAL_WHEEL_FACTOR * singedTargetAngle);
+	}
+	else
+	{
+		singedAngleRight = (int16_t)((double)EXTERNAL_WHEEL_FACTOR * singedTargetAngle);
+		singedAngleLeft = (int16_t)((double)INTERNAL_WHEEL_FACTOR * singedTargetAngle);
+	}
+
+	*angleRight = singedAngleRight + CAN_ANGLE_OFFSET;
+	*angleLeft = singedAngleLeft + CAN_ANGLE_OFFSET;
 }
+
+
