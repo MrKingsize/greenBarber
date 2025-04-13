@@ -35,11 +35,16 @@ https://drive.google.com/file/d/14uQVEL2jJQ8OUNeYXhHj3-7X3vHlUGO4/view?usp=drive
 - [Link to Flow Chart](https://1drv.ms/u/s!AtIa6l6rtp56t1KFMW9ak1gB99wk?e=hhpVGZ)
 - [Link to Draw.io](https://app.diagrams.net)
 
-## Module Workflow
+## Hardware Architecture
 
-Module workflow: receive harvest instruction -> turn on vacuum, blades and rotation -> harvesting -> stop vacuum, blades and rotation -> load harvest to the bag!
+![Can Signal Eletronic Topology](/can_signal_electronic_topology.png)
+Signal electronic architecture uses a BUS topology
+![Power Eletronic Topology](/power_electronic_topology.png)
+Power electronic architecture uses a Star topology
+- [Link to topology diagram](https://1drv.ms/u/c/7a9eb6ab5eea1ad2/EXP_oBulMRlKjw9oJdrVO20BP0ukXjDEBNnrLBEwfHqCcA?e=scYNxe)
 
-Module workflow: receive xyz coordinate instruction -> xyzToMotorTicks -> motor position with pid control
+![Electronic Diagram](/electric_diagram.drawio.png)
+- [Link to Electronic diagram](https://1drv.ms/u/c/7a9eb6ab5eea1ad2/EdX6DEbErRpKvL3SC-cUm7gBRzuU-WjK3B64LLYb7xZ8tA?e=4kJWse)
 
 
 ## IDEAS
