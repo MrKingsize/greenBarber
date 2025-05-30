@@ -13,8 +13,8 @@
 
 // rotation speed - choose only multiples of P_BASE.
 #define P_BASE             40 // 40 us
-#define MOTOR_LAST         (sizeof(motor_config) / sizeof(motor_config[0]))
-#define MAX_MOTORS_PER_MODULE   5
+//#define MOTOR_LAST         (sizeof(motor_config) / sizeof(motor_config[0]))
+#define MAX_MOTORS_PER_MODULE   6
 
 #define INTERNAL_WHEEL_FACTOR 0.8928
 #define EXTERNAL_WHEEL_FACTOR 1.0768
@@ -41,7 +41,15 @@ typedef enum{
     MOTOR_TURBINES,
     MOTOR_GATE_1,
     MOTOR_GATE_2,
+    MOTOR_LAST,
 }MOTOR_ENUM;
+
+// Motor types list
+typedef enum{
+    PWM_MOTOR = 0,
+    STEPPER_MOTOR,
+    STEPPER_PID,
+}MOTOR_TYPES;
 
 
 const uint8_t MCU_MAIN_MOTORS[] PROGMEM = {
@@ -80,28 +88,36 @@ const uint8_t HW_CUT_MOTORS[] PROGMEM = {
 // Fixed motor parameters 
 struct motor_config_t
 {
+    const MOTOR_TYPES motorType;                        // Motor type
     const uint32_t limit;                               // End limit of the motor, 0 = infinite
     const uint16_t defaultSpeedForward;                 // default speed which the motor moves forwards
     const uint16_t defaultSpeedBackwards;               // default speed which the motor moves backwards
     const MOTOR_ENUM motorIdx;                          // Modor Idx MOTOR_ENUM
-    const uint8_t dir_pin;                              // Driver direction pin
-    const uint8_t pul_pin;                              // Driver Pulse pin
+    const uint8_t dir_or_rpwm_pin;                      // Driver direction pin or Right PWM pin
+    const uint8_t pul_or_lpwm_pin;                      // Driver Pulse pin or Left PWM pin
     const uint8_t en_pin;                               // Driver Enable pin
     const uint8_t calib_pin;                            // End limit pin, 0 = no pin
-    const uint8_t orientation;                      // dir value which pulses increment position
+    const uint8_t relay_pin;                            // Power Supply relay pin
+    const uint8_t orientation;                          // dir value which pulses increment position                   
 };
+
 
 /**********************************************************************
  * store fixed parameters in flash (PROGMEM)
+ * Note: parameter motorIdx has to allways be by order and continuously according to MOTOR_ENUM
  * parameters access information, use:
  * uint8_t -> pgm_read_byte(&motor_config[0].dir_pin)
  * uint16_t -> pgm_read_word()
  * uint32_t -> pgm_read_dword()
  * ********************************************************************/
 const struct motor_config_t motor_config[] PROGMEM =
-{ //{limit, defaultSpeedForward, defaultSpeedBackwards, motorIdx, dir_pin, pul_pin, pul_pin, calib_pin, orientation}
-    {6700,   3*P_BASE,   3*P_BASE,  MOTOR_DIR_RIGHT,   2,      3,      4,      5,   0},
-    {6700,   3*P_BASE,   3*P_BASE,  MOTOR_DIR_LEFT,    2,      3,      4,      5,   0}};
+{ //{motorType, limit, defaultSpeedForward, defaultSpeedBackwards, motorIdx, dir_pin/rpwm_pin, pul_pin/lpwm_pin, en_pin, calib_pin, relay_pin, orientation}
+    {STEPPER_MOTOR, 6700,   3*P_BASE,   3*P_BASE,  MOTOR_DIR_RIGHT,     2,  3,  4,  5,  6,  0},
+    {STEPPER_MOTOR, 6700,   3*P_BASE,   3*P_BASE,  MOTOR_DIR_LEFT,      2,  3,  4,  5,  6,  0},
+    {PWM_MOTOR,     0,      200,        200,       MOTOR_TRACTION_RIGHT,5,  2,  17, 0,  3,  0},
+    {PWM_MOTOR,     0,      200,        200,       MOTOR_TRACTION_LEFT, 9,  10, A3, 0,  A2, 0},
+    {STEPPER_PID,   6700,   3*P_BASE,   3*P_BASE,  MOTOR_X,             4,  3,  5,  0,  A1, 0}};
+
 
 
 /****************************** Structures *************************************/
@@ -123,7 +139,7 @@ struct motor_control_t
 
 void printValuesMotor(MOTOR_ENUM motor);
 void motors_init(void);
-void motor_control(MOTOR_ENUM motor, MOTOR_CONTROL cmd, uint32_t period);
+void motor_control(MOTOR_ENUM motor, MOTOR_CONTROL cmd, uint32_t period, MOTOR_TYPES motorType);
 void disable_motor(MOTOR_ENUM motor);
 void enable_motor(MOTOR_ENUM motor);
 void calibrateMotor(MOTOR_ENUM motor);

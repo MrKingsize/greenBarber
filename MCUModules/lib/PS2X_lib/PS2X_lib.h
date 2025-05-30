@@ -125,10 +125,10 @@ GNU General Public License for more details.
 #define PSB_RED         0x2000
 #define PSB_BLUE        0x4000
 #define PSB_PINK        0x8000
-#define PSB_TRIANGLE    0x1000
-#define PSB_CIRCLE      0x2000
-#define PSB_CROSS       0x4000
-#define PSB_SQUARE      0x8000
+#define PSB_TRIANGLE    0x1000 // Y
+#define PSB_CIRCLE      0x2000 // B
+#define PSB_CROSS       0x4000 // A
+#define PSB_SQUARE      0x8000 // X
 
 //Guitar  button constants
 #define UP_STRUM		0x0010
@@ -246,6 +246,3 @@ class PS2X {
 };
 
 #endif
-
-
-

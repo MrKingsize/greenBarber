@@ -17,18 +17,18 @@
 #define pressures   false
 //#define rumble      true
 #define rumble      false
-#define PS2_DAT_PIN        13  //14    
-#define PS2_CMD_PIN        11  //15
-#define PS2_SEL_PIN        10  //16
-#define PS2_CLK_PIN        12  //17
+#define PS2_DAT        36
+#define PS2_CMD        38
+#define PS2_SEL        32
+#define PS2_CLK        34
     
  
  /****************************** Structures *************************************/
  
  
- 
  /****************************** Function Prototypes *************************************/
  void controller_init(void);
  void get_controller_cmd(void);
+ uint8_t get_forward_speed(void);
  
  #endif

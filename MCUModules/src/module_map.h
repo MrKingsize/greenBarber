@@ -29,7 +29,9 @@ typedef enum
     CMD_SET_DIR_ANGLE_LEFT,
     CMD_READ_DIR_ANGLE_LEFT,
     CMD_CALIBRATE_DIR_LEFT,
-    CMD_SET_TRACTION_SPEED_LEFT,
+    CMD_SET_TRACTION_SPEED_FORWARD_LEFT,
+    CMD_SET_TRACTION_SPEED_BACKWARD_LEFT,
+    CMD_SET_TRACTION_SPEED_STOP_LEFT,
     CMD_SET_X_TICK,
     CMD_READ_X_TICK,
     CMD_CALIBRATE_X,
@@ -113,7 +115,9 @@ const uint8_t HW_X_TRACTION_LEFT_CMDS[] PROGMEM = {
     CMD_SET_X_TICK, 
     CMD_READ_X_TICK, 
     CMD_CALIBRATE_X, 
-    CMD_SET_TRACTION_SPEED_LEFT
+    CMD_SET_TRACTION_SPEED_FORWARD_LEFT,
+    CMD_SET_TRACTION_SPEED_BACKWARD_LEFT,
+    CMD_SET_TRACTION_SPEED_STOP_LEFT
 };
 
 const uint8_t HW_Y_CMDS[] PROGMEM = {
@@ -160,7 +164,6 @@ typedef enum
 struct module_cmd_t
 {
     const MOD_SEL_ENUM_E moduleIdx; // Module selection from MOD_SEL_ENUM_E
-    const uint8_t moduleID;         // Module ID is both the can ID and the ID stored in flash of each module, it must correspond to (moduleIdx + 1)
     const uint8_t *cmdList;         // pointer to array stored in flash with command list
     const uint8_t cmdListCount;     // commands list count
     const uint8_t *motorsList;      // pointer to array stored in flash with motors list
@@ -180,27 +183,28 @@ struct module_cmd_t
  * pgm_read_byte(&cmdListPtr[0])
  * ********************************************************************/
 const struct module_cmd_t moduleMap[] PROGMEM =
-{   //moduleIdx,    moduleCANID,    cmdList,    cmdListCount
-    {MOD_SEL_JETSON,          1,    nullptr,                    0,                                                                      },
-    {MOD_SEL_MCU_MAIN,        2,    MCU_MAIN_CMDS,              sizeof(MCU_MAIN_CMDS) / sizeof(MCU_MAIN_CMDS[0]), \
+{   //moduleIdx,    cmdList,    cmdListCount
+    {MOD_SEL_JETSON,                nullptr,                    0, \
+                                    nullptr,                    0, },
+    {MOD_SEL_MCU_MAIN,              MCU_MAIN_CMDS,              sizeof(MCU_MAIN_CMDS) / sizeof(MCU_MAIN_CMDS[0]), \
                                     MCU_MAIN_MOTORS,            sizeof(MCU_MAIN_MOTORS) / sizeof(MCU_MAIN_MOTORS[0])},
-    {MOD_SEL_HW_DIR_RIGHT,    3,    HW_DIR_RIGHT_CMDS,          sizeof(HW_DIR_RIGHT_CMDS) / sizeof(HW_DIR_RIGHT_CMDS[0]), \
+    {MOD_SEL_HW_DIR_RIGHT,          HW_DIR_RIGHT_CMDS,          sizeof(HW_DIR_RIGHT_CMDS) / sizeof(HW_DIR_RIGHT_CMDS[0]), \
                                     HW_DIR_RIGHT_MOTORS,        sizeof(HW_DIR_RIGHT_MOTORS) / sizeof(HW_DIR_RIGHT_MOTORS[0])},
-    {MOD_SEL_HW_DIR_LEFT,     4,    HW_DIR_LEFT_CMDS,           sizeof(HW_DIR_LEFT_CMDS) / sizeof(HW_DIR_LEFT_CMDS[0]), \
+    {MOD_SEL_HW_DIR_LEFT,           HW_DIR_LEFT_CMDS,           sizeof(HW_DIR_LEFT_CMDS) / sizeof(HW_DIR_LEFT_CMDS[0]), \
                                     HW_DIR_LEFT_MOTORS,         sizeof(HW_DIR_LEFT_MOTORS) / sizeof(HW_DIR_LEFT_MOTORS[0])},
-    {MOD_SEL_HW_X_TRACTION_LEFT, 5, HW_X_TRACTION_LEFT_CMDS,    sizeof(HW_X_TRACTION_LEFT_CMDS) / sizeof(HW_X_TRACTION_LEFT_CMDS[0]), \
+    {MOD_SEL_HW_X_TRACTION_LEFT,    HW_X_TRACTION_LEFT_CMDS,    sizeof(HW_X_TRACTION_LEFT_CMDS) / sizeof(HW_X_TRACTION_LEFT_CMDS[0]), \
                                     HW_X_TRACTION_LEFT_MOTORS,  sizeof(HW_X_TRACTION_LEFT_MOTORS) / sizeof(HW_X_TRACTION_LEFT_MOTORS[0])},
-    {MOD_SEL_HW_Y,            6,    HW_Y_CMDS,                  sizeof(HW_Y_CMDS) / sizeof(HW_Y_CMDS[0]), \
+    {MOD_SEL_HW_Y,                  HW_Y_CMDS,                  sizeof(HW_Y_CMDS) / sizeof(HW_Y_CMDS[0]), \
                                     HW_Y_MOTORS,                sizeof(HW_Y_MOTORS) / sizeof(HW_Y_MOTORS[0])},
-    {MOD_SEL_HW_Z,            7,    HW_Z_CMDS,                  sizeof(HW_Z_CMDS) / sizeof(HW_Z_CMDS[0]), \
+    {MOD_SEL_HW_Z,                  HW_Z_CMDS,                  sizeof(HW_Z_CMDS) / sizeof(HW_Z_CMDS[0]), \
                                     HW_Z_MOTORS,                sizeof(HW_Z_MOTORS) / sizeof(HW_Z_MOTORS[0])},
-    {MOD_SEL_HW_CUT,          8,    HW_CUT_CMDS,                sizeof(HW_CUT_CMDS) / sizeof(HW_CUT_CMDS[0]), \
+    {MOD_SEL_HW_CUT,                HW_CUT_CMDS,                sizeof(HW_CUT_CMDS) / sizeof(HW_CUT_CMDS[0]), \
                                     HW_CUT_MOTORS,              sizeof(HW_CUT_MOTORS) / sizeof(HW_CUT_MOTORS[0])}
 };
 
 /****************************** Function Prototypes *************************************/
 void init_my_module_id(void);
 uint8_t get_my_module_id(void);
-void get_motors_list(uint8_t *motorList, uint8_t *motorsCount);
-
+void set_my_module_id(uint8_t id);
+void get_motors_list(uint8_t *motorList, uint8_t *motorsCountStepper, uint8_t *motorListPWM, uint8_t *motorsCountPWM);
 #endif

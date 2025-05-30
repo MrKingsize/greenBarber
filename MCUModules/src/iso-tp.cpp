@@ -305,108 +305,108 @@ uint8_t IsoTp::send(Message_t* msg)
     {
       case ISOTP_IDLE         :  break;
       case ISOTP_SEND         :
-                                 if(msg->len<=7)
-                                 {
+    if(msg->len<=7)
+    {
 #ifdef ISO_TP_DEBUG
-                                   Serial.println(F("Send SF"));
+      Serial.println(F("Send SF"));
 #endif
-                                   retval=send_sf(msg);
-                                   msg->tp_state=ISOTP_IDLE;
-                                 }
-                                 else
-                                 {
+      retval=send_sf(msg);
+      msg->tp_state=ISOTP_IDLE;
+    }
+    else
+    {
 #ifdef ISO_TP_DEBUG
-                                   Serial.println(F("Send FF"));
+      Serial.println(F("Send FF"));
 #endif
-                                   if(!(retval=send_ff(msg))) // FF complete
-                                   {
-                                     msg->Buffer+=6;
-                                     msg->len-=6;
-                                     msg->tp_state=ISOTP_WAIT_FIRST_FC;
-                                     fc_wait_frames=0;
-                                     wait_fc=millis();
-                                   }
-                                 }
-                                 break;
+      if(!(retval=send_ff(msg))) // FF complete
+      {
+        msg->Buffer+=6;
+        msg->len-=6;
+        msg->tp_state=ISOTP_WAIT_FIRST_FC;
+        fc_wait_frames=0;
+        wait_fc=millis();
+      }
+    }
+    break;
       case ISOTP_WAIT_FIRST_FC:
 #ifdef ISO_TP_DEBUG
-                                 Serial.println(F("Wait first FC"));
+        Serial.println(F("Wait first FC"));
 #endif
-                                 delta=millis()-wait_fc;
-                                 if(delta >= TIMEOUT_FC)
-                                 {
+        delta=millis()-wait_fc;
+        if(delta >= TIMEOUT_FC)
+        {
 #ifdef ISO_TP_DEBUG
-                                   Serial.print(F("FC timeout during receive"));
-                                   Serial.print(F(" wait_fc="));
-                                   Serial.print(wait_fc);
-                                   Serial.print(F(" delta="));
-                                   Serial.println(delta);
+        Serial.print(F("FC timeout during receive"));
+        Serial.print(F(" wait_fc="));
+        Serial.print(wait_fc);
+        Serial.print(F(" delta="));
+        Serial.println(delta);
 #endif
-                                   msg->tp_state = ISOTP_IDLE;
-				   retval=1;
-                                 }
-                                 break;
+        msg->tp_state = ISOTP_IDLE;
+          retval=1;
+        }
+        break;
       case ISOTP_WAIT_FC      :
 #ifdef ISO_TP_DEBUG
-                                 Serial.println(F("Wait FC"));
+        Serial.println(F("Wait FC"));
 #endif
-                                 break;
+        break;
       case ISOTP_SEND_CF      :
 #ifdef ISO_TP_DEBUG
-                                 Serial.println(F("Send CF"));
+        Serial.println(F("Send CF"));
 #endif
-                                 while(msg->len>7 && !bs)
-                                 {
-                                   fc_delay(msg->min_sep_time);
-                                   if(!(retval=send_cf(msg)))
-                                   {
+        while(msg->len>7 && !bs)
+        {
+          fc_delay(msg->min_sep_time);
+          if(!(retval=send_cf(msg)))
+          {
 #ifdef ISO_TP_DEBUG
-                                     Serial.print(F("Send Seq "));
-                                     Serial.println(msg->seq_id);
+            Serial.print(F("Send Seq "));
+            Serial.println(msg->seq_id);
 #endif
-                                     if(msg->blocksize > 0)
-                                     {
+              if(msg->blocksize > 0)
+              {
 #ifdef ISO_TP_DEBUG
-                                       Serial.print(F("Blocksize trigger "));
-                                       Serial.print(msg->seq_id %
-                                                    msg->blocksize);
+                Serial.print(F("Blocksize trigger "));
+                Serial.print(msg->seq_id %
+                             msg->blocksize);
 #endif
-                                       if(!(msg->seq_id % msg->blocksize))
-                                       {
-                                         bs=true;
-                                         msg->tp_state=ISOTP_WAIT_FC;
+                if(!(msg->seq_id % msg->blocksize))
+                {
+                  bs=true;
+                  msg->tp_state=ISOTP_WAIT_FC;
 #ifdef ISO_TP_DEBUG
-                                         Serial.println(F(" yes"));
+                  Serial.println(F(" yes"));
 #endif
-                                       }
+                }
 #ifdef ISO_TP_DEBUG
-                                       else Serial.println(F(" no"));
+                else Serial.println(F(" no"));
 #endif
-                                     }
-                                     msg->seq_id++;
-				     if (msg->blocksize < 16)
-                                       msg->seq_id %= 16;
-                                     else
-                                       msg->seq_id %= msg->blocksize;
-                                     msg->Buffer+=7;
-                                     msg->len-=7;
+              }
+              msg->seq_id++;
+				      if (msg->blocksize < 16)
+                msg->seq_id %= 16;
+              else
+                msg->seq_id %= msg->blocksize;
+              msg->Buffer+=7;
+              msg->len-=7;
 #ifdef ISO_TP_DEBUG
-                                     Serial.print(F("Length      : "));
-                                     Serial.println(msg->len);
+              Serial.print(F("Length      : "));
+              Serial.println(msg->len);
 #endif
-                                   }
-                                 }
-                                 if(!bs)
-                                 {
-                                   fc_delay(msg->min_sep_time);
+              }
+            }
+            if(!bs)
+            {
+              fc_delay(msg->min_sep_time);
 #ifdef ISO_TP_DEBUG
-                                   Serial.print(F("Send last Seq "));
-                                   Serial.println(msg->seq_id);
+              Serial.print(F("Send last Seq "));
+              Serial.println(msg->seq_id);
 #endif
-                                   retval=send_cf(msg);
-                                   msg->tp_state=ISOTP_IDLE;
-                                 }
-                                 break;
+              retval=send_cf(msg);
+              msg->tp_state=ISOTP_IDLE;
+            }
+            break;
       default                 :  break;
     }
 
@@ -436,91 +436,82 @@ uint8_t IsoTp::send(Message_t* msg)
 
 uint8_t IsoTp::receive(Message_t* msg)
 {
-    uint8_t n_pci_type = 0;
-    INT32U delta = 0;
+  uint8_t n_pci_type=0;
+  INT32U delta=0;
 
-    wait_session = millis();
+  wait_session=millis();
 #ifdef ISO_TP_DEBUG
-    Serial.println(F("Start receive..."));
+  Serial.println(F("Start receive..."));
 #endif
-    msg->tp_state = ISOTP_IDLE;
+  msg->tp_state=ISOTP_IDLE;
 
-    while (msg->tp_state != ISOTP_FINISHED && msg->tp_state != ISOTP_ERROR)
+  while(msg->tp_state!=ISOTP_FINISHED && msg->tp_state!=ISOTP_ERROR)
+  {
+    delta=millis()-wait_session;
+    if(delta >= TIMEOUT_SESSION)
     {
-        delta = millis() - wait_session;
-        if (delta >= TIMEOUT_SESSION)
-        {
 #ifdef ISO_TP_DEBUG
-            Serial.print(F("ISO-TP Session timeout wait_session="));
-            Serial.print(wait_session);
-            Serial.print(F(" delta="));
-            Serial.println(delta);
+      Serial.print(F("ISO-TP Session timeout wait_session="));
+      Serial.print(wait_session); Serial.print(F(" delta="));
+      Serial.println(delta);
 #endif
-            return 1;  // Timeout occurred, exit the function
-        }
-
-        // Check if a message is available, if not return immediately (non-blocking)
-        if (!can_receive())
-        {
-            // No message, return to allow the rest of the program to run
-            return 2;  // Indicating no message received yet
-        }
-
-        // Process the message if it's for this rxId
-        if (rxId == msg->rx_id)
-        {
-#ifdef ISO_TP_DEBUG
-            Serial.println(F("rxId OK!"));
-#endif
-            n_pci_type = rxBuffer[0] & 0xF0;  // Get PCI type (First byte)
-
-            // Process based on PCI type (Frame Type)
-            switch (n_pci_type)
-            {
-                case N_PCI_FC:
-#ifdef ISO_TP_DEBUG
-                    Serial.println(F("FC"));
-#endif
-                    rcv_fc(msg);  // Flow Control frame
-                    break;
-
-                case N_PCI_SF:
-#ifdef ISO_TP_DEBUG
-                    Serial.println(F("SF"));
-#endif
-                    rcv_sf(msg);  // Single Frame
-                    break;
-
-                case N_PCI_FF:
-#ifdef ISO_TP_DEBUG
-                    Serial.println(F("FF"));
-#endif
-                    rcv_ff(msg);  // First Frame
-                    break;
-
-                case N_PCI_CF:
-#ifdef ISO_TP_DEBUG
-                    Serial.println(F("CF"));
-#endif
-                    rcv_cf(msg);  // Consecutive Frame
-                    break;
-
-                default:
-#ifdef ISO_TP_DEBUG
-                    Serial.println(F("Unknown PCI type"));
-#endif
-                    break;
-            }
-            // Clear the buffer after processing
-            memset(rxBuffer, 0, sizeof(rxBuffer));
-        }
+      return 1;
     }
 
+    if(can_receive())
+    {
+      if(rxId==msg->rx_id)
+      {
 #ifdef ISO_TP_DEBUG
-    Serial.println(F("ISO-TP message received:"));
-    print_buffer(msg->rx_id, msg->Buffer, msg->len);  // Debug print the received message
+        Serial.println(F("rxId OK!"));
+#endif
+        n_pci_type=rxBuffer[0] & 0xF0;
+
+        switch (n_pci_type)
+        {
+          case N_PCI_FC:
+#ifdef ISO_TP_DEBUG
+                      Serial.println(F("FC"));
+#endif
+                      /* tx path: fc frame */
+                      rcv_fc(msg);
+                      break;
+
+          case N_PCI_SF:
+#ifdef ISO_TP_DEBUG
+                      Serial.println(F("SF"));
+#endif
+                      /* rx path: single frame */
+                      rcv_sf(msg);
+//		      msg->tp_state=ISOTP_FINISHED;
+                      break;
+
+          case N_PCI_FF:
+#ifdef ISO_TP_DEBUG
+                      Serial.println(F("FF"));
+#endif
+                      /* rx path: first frame */
+                      rcv_ff(msg);
+//		      msg->tp_state=ISOTP_WAIT_DATA;
+                      break;
+                      break;
+
+          case N_PCI_CF:
+#ifdef ISO_TP_DEBUG
+                      Serial.println(F("CF"));
+#endif
+                      /* rx path: consecutive frame */
+                      rcv_cf(msg);
+                      break;
+        }
+        memset(rxBuffer,0,sizeof(rxBuffer));
+      }
+    }
+  }
+#ifdef ISO_TP_DEBUG
+  Serial.println(F("ISO-TP message received:"));
+  print_buffer(msg->rx_id, msg->Buffer, msg->len);
 #endif
 
-    return 0;  // Successful reception
+  return 0;
 }
-
