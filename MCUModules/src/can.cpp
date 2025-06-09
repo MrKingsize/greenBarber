@@ -77,7 +77,6 @@ void my_can_receive(void)
     {
         uint8_t canMsg[MESSAGE_LENGTH];
         memcpy(&canMsg, rxMsg.Buffer, sizeof(canMsg));
-
         uint8_t cmd = canMsg[0];
         uint16_t receivedPayload = (canMsg[1] << 8) | canMsg[2];
 

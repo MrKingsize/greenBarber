@@ -129,7 +129,6 @@ uint8_t IsoTp::rcv_sf(struct Message_t* msg)
   /* copy the received data bytes */
   memcpy(msg->Buffer,rxBuffer+1,msg->len); // Skip PCI, SF uses len bytes
   msg->tp_state=ISOTP_FINISHED;
-
   return 0;
 }
 

@@ -42,7 +42,7 @@ void setup() {
 	while (!Serial && (millis() - startTime < 5000));
 	
 	Serial.print("Setup\n");
-	set_my_module_id(MOD_SEL_HW_X_TRACTION_LEFT);
+	//set_my_module_id(MOD_SEL_HW_X_TRACTION_LEFT);
 	//set_my_module_id(MOD_SEL_MCU_MAIN);
 
 	init_my_module_id();
@@ -54,18 +54,19 @@ void setup() {
 	motors_init();
 
     delay(300);
-//
-//	if (get_my_module_id() == MOD_SEL_MCU_MAIN)
-//		controller_init();
-//
-//	delay(300);
+
+#ifndef __AVR_ATmega32U4__
+	if (get_my_module_id() == MOD_SEL_MCU_MAIN)
+		controller_init();
+	delay(300);
+#endif
 }
 
 void debug_function()
 {
 	if (get_my_module_id() == MOD_SEL_MCU_MAIN)
 	{
-		my_can_send((uint8_t)MOD_SEL_HW_X_TRACTION_LEFT, (uint8_t)CMD_SET_TRACTION_SPEED_FORWARD_LEFT, 50);
+		my_can_send((uint8_t)MOD_SEL_HW_X_TRACTION_LEFT, (uint8_t)CMD_SET_TRACTION_SPEED_FORWARD_LEFT, 255);
 		//debug_send();
 
 	}
@@ -75,7 +76,6 @@ void debug_function()
 		my_can_receive();
 		//debug_receive();
 	}
-	delay(1000);
 	command_t cmd;
 	if (dequeue_command(&cmd)) {
         // Process the command based on cmd.sender_id, cmd.cmd, cmd.payload
@@ -86,6 +86,7 @@ void debug_function()
         Serial.print(", Payload: ");
         Serial.println(cmd.payload);
     }
+	delay(1050);
 	
 }
 
@@ -97,124 +98,124 @@ void loop()
 {
 	TRACE_PRINTF("\nEntering Function\n\n");
 	// debug loop
-	while (1) {debug_function();}
+	//while (1) {debug_function();}
 	//debug_function();
 	//while (1);
 
-//	uint8_t myModuleIdx = get_my_module_id();
-//
-//	while(1){
-//		// can pooling messages
-//		my_can_receive();
-//
-//		if (myModuleIdx == MOD_SEL_MCU_MAIN)
-//			get_controller_cmd();
-//		
-//		//get command
-//		command_t cmd;
-//		if (dequeue_command(&cmd))
-//		{
-//			//DEBUG_PRINTF("Command received: %d\n",cmd.cmd);
-//			if (myModuleIdx == MOD_SEL_MCU_MAIN)
-//			{
-//				if (cmd.cmd == CMD_SET_DIRECTION_ANGLE)
-//				{
-//					uint16_t angleRight, angleLeft;
-//					calculate_wheels_angles(cmd.payload, &angleRight, &angleLeft);
-//
-//					//send can messages
-//					//my_can_send((uint8_t)MOD_SEL_HW_DIR_RIGHT, (uint8_t)CMD_SET_DIR_ANGLE_RIGHT, angleRight);
-//					//my_can_send((uint8_t)MOD_SEL_HW_DIR_LEFT, (uint8_t)CMD_SET_DIR_ANGLE_LEFT, angleLeft);
-//				}
-//				else if (cmd.cmd == CMD_MOVE_FORWARD)
-//				{
-//					// move both left and right traction motor
-//
-//					uint16_t speedRight, speedleft;
-//					uint16_t targetSpeed = cmd.payload;
-//					// TODO Calculate wheels speed based on current angle
-//					speedRight = targetSpeed;
-//					speedleft = targetSpeed;
-//					
-//					DEBUG_PRINTF("Action: Move forward! %d\n", targetSpeed);
-//
-//					// move left motor
-//					//my_can_send((uint8_t)MOD_SEL_HW_X_TRACTION_LEFT, (uint8_t)CMD_SET_TRACTION_SPEED_FORWARD_LEFT, speedleft);
-//					// move right motor (own)
-//					motor_control(MOTOR_TRACTION_RIGHT, MOTOR_PLUS_CMD, (uint32_t)speedRight, PWM_MOTOR);
-//
-//				}
-//				else if (cmd.cmd == CMD_MOVE_BACKWARDS)
-//				{
-//					uint16_t speedRight, speedleft;
-//					uint16_t targetSpeed = cmd.payload;
-//					// TODO Calculate wheels speed based on current angle
-//					speedRight = targetSpeed;
-//					speedleft = targetSpeed;
-//					
-//					DEBUG_PRINTF("Action: Move Backwards! %d\n", targetSpeed);
-//
-//					// move left motor
-//					//my_can_send((uint8_t)MOD_SEL_HW_X_TRACTION_LEFT, (uint8_t)CMD_SET_TRACTION_SPEED_BACKWARD_LEFT, speedleft);
-//					// move right motor (own)
-//					motor_control(MOTOR_TRACTION_RIGHT, MOTOR_MINUS_CMD, speedRight, PWM_MOTOR);
-//
-//				}
-//				else if (cmd.cmd == CMD_STOP)
-//				{
-//					DEBUG_PRINTF("Action: Stop moving!\n");
-//
-//					// move left motor
-//					//my_can_send((uint8_t)MOD_SEL_HW_X_TRACTION_LEFT, (uint8_t)CMD_SET_TRACTION_SPEED_FORWARD_LEFT, 0);
-//					// move right motor (own)
-//					motor_control(MOTOR_TRACTION_RIGHT, MOTOR_STOP_CMD, 0, PWM_MOTOR);
-//
-//				}
-//				
-//			}
-//			else if (myModuleIdx == MOD_SEL_HW_DIR_RIGHT)
-//			{
-//
-//			}
-//			else if (myModuleIdx == MOD_SEL_HW_DIR_LEFT)
-//			{
-//
-//			}
-//			else if (myModuleIdx == MOD_SEL_HW_X_TRACTION_LEFT)
-//			{
-//				if (cmd.cmd == CMD_SET_TRACTION_SPEED_FORWARD_LEFT)
-//				{
-//					DEBUG_PRINTF("Action: Move forward! %d\n", cmd.payload);
-//					motor_control(MOTOR_TRACTION_LEFT, MOTOR_PLUS_CMD, (uint32_t)cmd.payload, PWM_MOTOR);
-//
-//				}if (cmd.cmd == CMD_SET_TRACTION_SPEED_BACKWARD_LEFT)
-//				{
-//					DEBUG_PRINTF("Action: Move forward! %d\n", cmd.payload);
-//					motor_control(MOTOR_TRACTION_LEFT, MOTOR_MINUS_CMD, (uint32_t)cmd.payload, PWM_MOTOR);
-//
-//				}if (cmd.cmd == CMD_SET_TRACTION_SPEED_STOP_LEFT)
-//				{
-//					DEBUG_PRINTF("Action: Move forward! %d\n", cmd.payload);
-//					motor_control(MOTOR_TRACTION_LEFT, MOTOR_STOP_CMD, (uint32_t)cmd.payload, PWM_MOTOR);
-//
-//				}
-//			}
-//			else if (myModuleIdx == MOD_SEL_HW_Y)
-//			{
-//
-//			}
-//			else if (myModuleIdx == MOD_SEL_HW_Z)
-//			{
-//
-//			}
-//			else if (myModuleIdx == MOD_SEL_HW_CUT)
-//			{
-//
-//			}
-//		
-//		}
-//		delay(50); 
-//	}
+	uint8_t myModuleIdx = get_my_module_id();
+
+	while(1){
+		// can pooling messages
+		my_can_receive();
+
+		if (myModuleIdx == MOD_SEL_MCU_MAIN)
+			get_controller_cmd();
+		
+		//get command
+		command_t cmd;
+		if (dequeue_command(&cmd))
+		{
+			//DEBUG_PRINTF("Command received: %d\n",cmd.cmd);
+			if (myModuleIdx == MOD_SEL_MCU_MAIN)
+			{
+				if (cmd.cmd == CMD_SET_DIRECTION_ANGLE)
+				{
+					uint16_t angleRight, angleLeft;
+					calculate_wheels_angles(cmd.payload, &angleRight, &angleLeft);
+
+					//send can messages
+					//my_can_send((uint8_t)MOD_SEL_HW_DIR_RIGHT, (uint8_t)CMD_SET_DIR_ANGLE_RIGHT, angleRight);
+					//my_can_send((uint8_t)MOD_SEL_HW_DIR_LEFT, (uint8_t)CMD_SET_DIR_ANGLE_LEFT, angleLeft);
+				}
+				else if (cmd.cmd == CMD_MOVE_FORWARD)
+				{
+					// move both left and right traction motor
+
+					uint16_t speedRight, speedleft;
+					uint16_t targetSpeed = cmd.payload;
+					// TODO Calculate wheels speed based on current angle
+					speedRight = targetSpeed;
+					speedleft = targetSpeed;
+					
+					DEBUG_PRINTF("Action: Move forward! %d\n", targetSpeed);
+
+					// move left motor
+					my_can_send((uint8_t)MOD_SEL_HW_X_TRACTION_LEFT, (uint8_t)CMD_SET_TRACTION_SPEED_FORWARD_LEFT, speedleft);
+					// move right motor (own)
+					motor_control(MOTOR_TRACTION_RIGHT, MOTOR_PLUS_CMD, (uint32_t)speedRight, PWM_MOTOR);
+
+				}
+				else if (cmd.cmd == CMD_MOVE_BACKWARDS)
+				{
+					uint16_t speedRight, speedleft;
+					uint16_t targetSpeed = cmd.payload;
+					// TODO Calculate wheels speed based on current angle
+					speedRight = targetSpeed;
+					speedleft = targetSpeed;
+					
+					DEBUG_PRINTF("Action: Move Backwards! %d\n", targetSpeed);
+
+					// move left motor
+					my_can_send((uint8_t)MOD_SEL_HW_X_TRACTION_LEFT, (uint8_t)CMD_SET_TRACTION_SPEED_BACKWARD_LEFT, speedleft);
+					// move right motor (own)
+					motor_control(MOTOR_TRACTION_RIGHT, MOTOR_MINUS_CMD, speedRight, PWM_MOTOR);
+
+				}
+				else if (cmd.cmd == CMD_STOP)
+				{
+					DEBUG_PRINTF("Action: Stop moving!\n");
+
+					// move left motor
+					my_can_send((uint8_t)MOD_SEL_HW_X_TRACTION_LEFT, (uint8_t)CMD_SET_TRACTION_SPEED_FORWARD_LEFT, 0);
+					// move right motor (own)
+					motor_control(MOTOR_TRACTION_RIGHT, MOTOR_STOP_CMD, 0, PWM_MOTOR);
+
+				}
+				
+			}
+			else if (myModuleIdx == MOD_SEL_HW_DIR_RIGHT)
+			{
+
+			}
+			else if (myModuleIdx == MOD_SEL_HW_DIR_LEFT)
+			{
+
+			}
+			else if (myModuleIdx == MOD_SEL_HW_X_TRACTION_LEFT)
+			{
+				if (cmd.cmd == CMD_SET_TRACTION_SPEED_FORWARD_LEFT)
+				{
+					DEBUG_PRINTF("Action: Move forward! %d\n", cmd.payload);
+					motor_control(MOTOR_TRACTION_LEFT, MOTOR_PLUS_CMD, (uint32_t)cmd.payload, PWM_MOTOR);
+
+				}if (cmd.cmd == CMD_SET_TRACTION_SPEED_BACKWARD_LEFT)
+				{
+					DEBUG_PRINTF("Action: Move forward! %d\n", cmd.payload);
+					motor_control(MOTOR_TRACTION_LEFT, MOTOR_MINUS_CMD, (uint32_t)cmd.payload, PWM_MOTOR);
+
+				}if (cmd.cmd == CMD_SET_TRACTION_SPEED_STOP_LEFT)
+				{
+					DEBUG_PRINTF("Action: Move forward! %d\n", cmd.payload);
+					motor_control(MOTOR_TRACTION_LEFT, MOTOR_STOP_CMD, (uint32_t)cmd.payload, PWM_MOTOR);
+
+				}
+			}
+			else if (myModuleIdx == MOD_SEL_HW_Y)
+			{
+
+			}
+			else if (myModuleIdx == MOD_SEL_HW_Z)
+			{
+
+			}
+			else if (myModuleIdx == MOD_SEL_HW_CUT)
+			{
+
+			}
+		
+		}
+		delay(50); 
+	}
   
 }
 
