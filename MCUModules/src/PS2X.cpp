@@ -15,12 +15,14 @@
 #include "common.h"
 
 /*************************** Global Variables ********************************/
+#define DETECT_TRESHOLD 1
+#define CONTROLLER_ZERO_POINT 128
 
 int error = 0;
 byte type = 0;
 byte vibrate = 0;
 uint8_t forwardSpeed = 0;
-uint8_t angleTarget = 0;
+uint8_t dirAngleValue = 0;
 
 PS2X ps2x; // create PS2 Controller Class
 
@@ -82,7 +84,8 @@ void controller_init(void)
 
 void get_controller_cmd(void)
 {
-    static uint8_t forwardSpeedAnt = 128;
+    static uint8_t forwardSpeedAnt = CONTROLLER_ZERO_POINT;
+    static uint8_t targetDirAnt = CONTROLLER_ZERO_POINT;
 
     if(error == 1) //skip loop if no controller found
     {
@@ -181,16 +184,20 @@ void get_controller_cmd(void)
     }
     if (ps2x.Button(PSB_L1))
     {
-        uint8_t valueTemp = ps2x.Analog(PSS_RY);
+        uint8_t speedValueTemp = ps2x.Analog(PSS_RY);
+        uint8_t dirValueTemp = ps2x.Analog(PSS_RX);
 
         //filter controller noise
-        if ((valueTemp == 255) && (ps2x.Analog(PSS_LY) == 255) && (ps2x.Analog(PSS_LX) == 255) && (ps2x.Analog(PSS_RX)))
+        if ((speedValueTemp == 255) && (ps2x.Analog(PSS_LY) == 255) && (ps2x.Analog(PSS_LX) == 255) && (dirValueTemp == 255))
         {
             delay(50);
             return;
         }
 
-        forwardSpeed = valueTemp; // down -> 255, up -> 0
+        forwardSpeed = speedValueTemp; // down -> 255, up -> 0
+        dirAngleValue = dirValueTemp; // right -> 255, left -> 0
+
+        //calculate forward speed
         if (abs(forwardSpeedAnt - forwardSpeed) > 10)
         {
             forwardSpeedAnt = forwardSpeed;
@@ -202,7 +209,7 @@ void get_controller_cmd(void)
             }
             else if (forwardSpeed < 128)
             {
-                uint8_t targetSpeed = 255 - forwardSpeed*2;
+                uint8_t targetSpeed = (255 - forwardSpeed)*2;
                 enqueue_command(MOD_SEL_MCU_MAIN, CMD_MOVE_FORWARD, targetSpeed);
             }
             else
@@ -211,12 +218,26 @@ void get_controller_cmd(void)
             }
             
         }
+
+        //calculate direction angle
+        if (abs(targetDirAnt - dirAngleValue) > DETECT_TRESHOLD)
+        {
+            targetDirAnt = dirAngleValue;
+            double angle = ((dirAngleValue / 255.0) * 90.0) - 45.0;
+            uint8_t targetAngleCan = (uint8_t)(angle + CAN_ANGLE_OFFSET);
+            enqueue_command(MOD_SEL_MCU_MAIN, CMD_SET_DIRECTION_ANGLE, targetAngleCan);
+        }
+        else if ((abs(targetDirAnt - dirAngleValue) > 1) && (dirAngleValue == CONTROLLER_ZERO_POINT))
+        {
+            targetDirAnt = dirAngleValue;
+            enqueue_command(MOD_SEL_MCU_MAIN, CMD_SET_DIRECTION_ANGLE, 0);
+        }        
     }
 
-    if (ps2x.Button(PSB_L1) || ps2x.Button(PSB_PAD_UP) || ps2x.Button(PSB_PAD_DOWN))
-    {
-        angleTarget = ps2x.Analog(PSS_RX); // right -> 255, left -> 0
-    }
+    //if (ps2x.Button(PSB_L1) || ps2x.Button(PSB_PAD_UP) || ps2x.Button(PSB_PAD_DOWN))
+    //{
+    //    angleTarget = ps2x.Analog(PSS_RX); // right -> 255, left -> 0
+    //}
         
     //if(ps2x.Button(PSB_L1) || ps2x.Button(PSB_R1)) { //print stick values if either is TRUE
     //    Serial.print("Stick Values:");

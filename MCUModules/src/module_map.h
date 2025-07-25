@@ -43,6 +43,9 @@ typedef enum
     CMD_CALIBRATE_Z,
     CMD_TURN_ON_CUT,
     CMD_TURN_OFF_CUT,
+    CMD_CALIBRATE_TURBINES,
+    CMD_TURBINES_ON,
+    CMD_TURBINES_OFF
 } CMD_HW_ENUM_E;
 
 // General High level commands from Jetson to main MCU
@@ -137,6 +140,12 @@ const uint8_t HW_CUT_CMDS[] PROGMEM = {
     CMD_TURN_OFF_CUT
 };
 
+const uint8_t HW_TURBINES_CMDS[] PROGMEM = {
+    CMD_CALIBRATE_TURBINES,
+    CMD_TURBINES_ON,
+    CMD_TURBINES_OFF
+};
+
 
 /******************************************************************************
  * Module maps Definition
@@ -153,7 +162,9 @@ typedef enum
     MOD_SEL_HW_X_TRACTION_LEFT = 4, // Individual HW module X axis and traction left side
     MOD_SEL_HW_Y = 5,               // Individual HW module Y axis
     MOD_SEL_HW_Z = 6,               // Individual HW module Z axis
-    MOD_SEL_HW_CUT = 7              // Individual HW module harvesting
+    MOD_SEL_HW_CUT = 7,             // Individual HW module harvesting
+    MOD_SEL_HW_TURBINES = 8,          // Individual HW module turbine
+    MOD_SEL_LAST
 } MOD_SEL_ENUM_E;
 
 
@@ -199,7 +210,9 @@ const struct module_cmd_t moduleMap[] PROGMEM =
     {MOD_SEL_HW_Z,                  HW_Z_CMDS,                  sizeof(HW_Z_CMDS) / sizeof(HW_Z_CMDS[0]), \
                                     HW_Z_MOTORS,                sizeof(HW_Z_MOTORS) / sizeof(HW_Z_MOTORS[0])},
     {MOD_SEL_HW_CUT,                HW_CUT_CMDS,                sizeof(HW_CUT_CMDS) / sizeof(HW_CUT_CMDS[0]), \
-                                    HW_CUT_MOTORS,              sizeof(HW_CUT_MOTORS) / sizeof(HW_CUT_MOTORS[0])}
+                                    HW_CUT_MOTORS,              sizeof(HW_CUT_MOTORS) / sizeof(HW_CUT_MOTORS[0])},
+    {MOD_SEL_HW_TURBINES,           HW_TURBINES_CMDS,           sizeof(HW_TURBINES_CMDS) / sizeof(HW_TURBINES_CMDS[0]), \
+                                    HW_TURBINES_MOTORS,         sizeof(HW_TURBINES_MOTORS) / sizeof(HW_TURBINES_MOTORS[0])}
 };
 
 /****************************** Function Prototypes *************************************/

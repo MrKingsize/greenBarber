@@ -10,6 +10,8 @@
 #include <Arduino.h>
 
 /****************************** Constants *************************************/
+#define CAN_ANGLE_OFFSET 100
+
 
 #define DEBUG_PRINTF(...)                     \
   do {                                        \

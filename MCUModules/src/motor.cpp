@@ -29,13 +29,19 @@ uint32_t countPrintMotor = 0; // Debug variables
 /*******************************************************************************
  * @brief print of the motor control values
  *******************************************************************************/
-void printValuesMotor(MOTOR_ENUM motor)
+void printValuesMotor(uint8_t motor)
 {
 	if (motor < MOTOR_LAST)
 	{
-		char buffer[50];
-		sprintf (buffer,"MOTOR_ID: %d\tpos = %d\tdir = %d\tmotor_run = %d\n",(int)motor, (int)motorCtrl[motor].pos,motorCtrl[motor].dir,motorCtrl[motor].motorRunFlag);
-		Serial.print(buffer);
+		DEBUG_PRINTF("MOTOR_ID: %d\tpos = %d\tdir = %d\tmotor_run = %d\n",(int)motor, (int)motorCtrl[motor].pos, motorCtrl[motor].dir, motorCtrl[motor].motorRunFlag);
+	}
+}
+
+void printValuesPid(uint8_t motor)
+{
+	if (motor < MOTOR_LAST)
+	{
+		DEBUG_PRINTF("period: %d\tpid_prev_err = %d\tpid_integral = %d\n",(int)motorCtrl[motor].period, (int)motorCtrl[motor].pid_prev_err, motorCtrl[motor].pid_integral);
 	}
 }
 
@@ -47,6 +53,7 @@ void enable_motor(MOTOR_ENUM motor)
 	if (motor < MOTOR_LAST)
 	{
 		digitalWrite(pgm_read_byte(&motor_config[motor].en_pin), LOW);
+		//TRACE_PRINTF("Motor %d enabled, pin %d, value %d\n", motor, pgm_read_byte(&motor_config[motor].en_pin), LOW);
 	} 
 }
 
@@ -61,30 +68,144 @@ void disable_motor(MOTOR_ENUM motor)
 	}  
 }
 
+static inline int32_t clamp_i32(int32_t v, int32_t lo, int32_t hi) {
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+}
+
+static inline int32_t map_linear_i32(int32_t x, int32_t in_min, int32_t in_max,
+                                     int32_t out_min, int32_t out_max)
+{
+    if (x <= in_min) return out_min;
+    if (x >= in_max) return out_max;
+    return out_min + (int64_t)(out_max - out_min) * (x - in_min) / (in_max - in_min);
+}
+
+static inline int32_t ff_error_to_speed(int32_t abs_err)
+{
+    return map_linear_i32(abs_err, 0, FF_ERR_MAX, FF_SPEED_MIN, FF_SPEED_MAX);
+}
+
+
+
+static inline uint16_t speed_to_period_40us(int32_t speed)
+{
+    speed = clamp_i32(speed, PID_OUT_MIN_SPEED, PID_OUT_MAX_SPEED);
+
+    // Linear map (fast speed -> small period)
+    uint32_t num   = (uint32_t)(PID_OUT_MAX_SPEED - speed);
+    uint32_t denom = (PID_OUT_MAX_SPEED - PID_OUT_MIN_SPEED);
+
+    uint32_t period = MIN_PERIOD_40US +
+        ((uint32_t)(MAX_PERIOD_40US - MIN_PERIOD_40US) * num) / denom;
+
+    return (uint16_t)period;
+}
+
+
+static void pid_update(uint8_t motorIdx)
+{
+    // Gains (raw -> fixed point)
+    uint16_t kp_raw = pgm_read_word(&motor_config[motorIdx].PID_P);
+    uint16_t ki_raw = pgm_read_word(&motor_config[motorIdx].PID_I);
+    uint16_t kd_raw = pgm_read_word(&motor_config[motorIdx].PID_D);
+
+    int32_t Kp = ((int32_t)kp_raw) << PID_SHIFT;
+    int32_t Ki = ((int32_t)ki_raw) << PID_SHIFT;
+    int32_t Kd = ((int32_t)kd_raw) << PID_SHIFT;
+
+    int32_t error = (int32_t)motorCtrl[motorIdx].targetPos - (int32_t)motorCtrl[motorIdx].pos;
+    int32_t abs_err = (error >= 0) ? error : -error;
+
+    // Deadband stop
+    if (abs_err <= POS_DEADBAND) {
+        motorCtrl[motorIdx].motorRunFlag = 0;
+        motorCtrl[motorIdx].period = MAX_PERIOD_40US;
+        motorCtrl[motorIdx].pid_integral = 0;
+        motorCtrl[motorIdx].pid_prev_err = error;
+        return;
+    }
+
+    // Direction
+    motorCtrl[motorIdx].dir = (error > 0) ? 1 : 0;
+
+    // Feed-forward base speed
+    int32_t ff_speed = ff_error_to_speed(abs_err);
+
+    // Derivative
+    int32_t deriv = error - motorCtrl[motorIdx].pid_prev_err;
+    motorCtrl[motorIdx].pid_prev_err = error;
+
+    // Predict PID output *before* integrating to decide about windup
+    int32_t pid_out_fp_preview =
+        (Kp * error) +
+        (Ki * motorCtrl[motorIdx].pid_integral) +
+        (Kd * deriv);
+    int32_t pid_out_preview = pid_out_fp_preview >> PID_SHIFT;
+
+    int32_t speed_preview = ff_speed + ((pid_out_preview >= 0) ? pid_out_preview : -pid_out_preview);
+    bool will_saturate = (speed_preview >= PID_OUT_MAX_SPEED);
+
+    // Integrate ONLY if not saturated (simple anti-windup)
+    if (!will_saturate) {
+        motorCtrl[motorIdx].pid_integral += error;
+        motorCtrl[motorIdx].pid_integral =
+            clamp_i32(motorCtrl[motorIdx].pid_integral, -PID_INT_MAX, PID_INT_MAX);
+    }
+
+    // Now compute final PID
+    int32_t pid_out_fp =
+        (Kp * error) +
+        (Ki * motorCtrl[motorIdx].pid_integral) +
+        (Kd * deriv);
+    int32_t pid_out = pid_out_fp >> PID_SHIFT;
+
+    // Combine FF + PID (pid_out is signed; speed magnitude is positive)
+    int32_t speed_cmd = ff_speed + ((pid_out >= 0) ? pid_out : -pid_out);
+
+    // To period
+    uint16_t period = speed_to_period_40us(speed_cmd);
+    motorCtrl[motorIdx].period = period;
+}
+
+
+
+
 /*******************************************************************************
  * @brief go to position control function without PID
  *******************************************************************************/
-void goto_pos(MOTOR_ENUM motor, uint32_t targetPos, uint32_t period)
+void goto_pos(MOTOR_ENUM motor, uint32_t targetPos)
 {
-	if (motor < MOTOR_LAST)
+	
+	motorCtrl[motor].targetPos = targetPos;
+	motorCtrl[motor].motorRunFlag = 1;
+	/*if (motor < MOTOR_LAST)
 	{
-		if (targetPos > motorCtrl[motor].pos)
-		{
-			while(motorCtrl[motor].pos < targetPos && motorCtrl[motor].pos < pgm_read_dword(&motor_config[motor].limit))
+		if (abs(targetPos - motorCtrl[motor].pos) > 10)
+			if (targetPos > motorCtrl[motor].pos)
 			{
-				motor_control(motor,MOTOR_PLUS_CMD,period,STEPPER_MOTOR);
+				uint32_t motorLimit = pgm_read_dword(&motor_config[motor].limit);
+				if(motorCtrl[motor].pos < targetPos && motorCtrl[motor].pos < motorLimit)
+				{
+					motor_control(motor, MOTOR_PLUS_CMD, motor_config[motor].defaultSpeedForward, STEPPER_MOTOR);
+				}
 			}
-		}
+			else
+			{
+				if(motorCtrl[motor].pos > targetPos && motorCtrl[motor].pos > 0)
+				{
+					motor_control(motor, MOTOR_MINUS_CMD, motor_config[motor].defaultSpeedBackwards, STEPPER_MOTOR);
+				}
+			}
 		else
 		{
-			while(motorCtrl[motor].pos > targetPos && motorCtrl[motor].pos > 0)
-			{
-				motor_control(motor,MOTOR_MINUS_CMD,period,STEPPER_MOTOR);
-			}
+			TRACE_PRINTF("Motor %d reached target position %d\n", motor, targetPos);
+			motorCtrl[motor].motorRunFlag = 0;
 		}
-		motorCtrl[motor].motorRunFlag = 0;
+		
 		//motor_control(motor,MOTOR_STOP_CMD,period);
-	}
+	}*/
 }
 
 /******************************************************************************
@@ -92,17 +213,18 @@ void goto_pos(MOTOR_ENUM motor, uint32_t targetPos, uint32_t period)
  ******************************************************************************/
 void calibrateMotor(MOTOR_ENUM motor)
 {
-  
-	while(digitalRead(pgm_read_byte(&motor_config[motor].calib_pin)) == 1){
-		motor_control(motor,MOTOR_MINUS_CMD,pgm_read_word(&motor_config[motor].defaultSpeedBackwards),STEPPER_MOTOR);
+	TRACE_PRINTF("Calibrating Motor %d\n", motor);
+	uint8_t calibPin = pgm_read_byte(&motor_config[motor].calib_pin);
+	while(digitalRead(calibPin) == 1){
+		motor_control(motor, MOTOR_MINUS_CMD, pgm_read_word(&motor_config[motor].defaultSpeedBackwards), STEPPER_MOTOR);
 		delay(1);
 	}
-	motor_control(motor,MOTOR_STOP_CMD,pgm_read_word(&motor_config[motor].defaultSpeedBackwards),STEPPER_MOTOR);
-	//printf("Zero marked!\n");
+	//motor_control(motor, MOTOR_STOP_CMD, pgm_read_word(&motor_config[motor].defaultSpeedBackwards), STEPPER_MOTOR);
+	TRACE_PRINTF("Zero reseted!\n");
 	motorCtrl[motor].calibFlag = 1;
 	motorCtrl[motor].pos = 0;
-	goto_pos(motor, 2000, pgm_read_word(&motor_config[motor].defaultSpeedForward));
-	motor_control(motor,MOTOR_STOP_CMD,pgm_read_word(&motor_config[motor].defaultSpeedBackwards),STEPPER_MOTOR);
+	//goto_pos(motor, 2000);
+	//motor_control(motor, MOTOR_STOP_CMD, pgm_read_word(&motor_config[motor].defaultSpeedBackwards), STEPPER_MOTOR);
 }
 
 /******************************************************************************
@@ -119,11 +241,7 @@ void motor_control(MOTOR_ENUM motor, MOTOR_CONTROL cmd, uint32_t period, MOTOR_T
 
 	if (motorType != PWM_MOTOR)
 	{
-		if ((period % P_BASE) != 0)
-		{
-			return;
-		}
-		
+			
 		if (motorCtrl[motor].cmdAnterior == cmd)
 		return;
 
@@ -137,13 +255,13 @@ void motor_control(MOTOR_ENUM motor, MOTOR_CONTROL cmd, uint32_t period, MOTOR_T
 				motorCtrl[motor].motorRunFlag = 1;
 				motorCtrl[motor].dir = 1;
 				enable_motor(motor);
-				motorCtrl[motor].vel = period;
+				motorCtrl[motor].period = period;
 				break;
 			case MOTOR_MINUS_CMD:
 				motorCtrl[motor].motorRunFlag = 1;
 				motorCtrl[motor].dir = 0;
 				enable_motor(motor);
-				motorCtrl[motor].vel = period;   
+				motorCtrl[motor].period = period;   
 				break;
 		}
 		motorCtrl[motor].cmdAnterior = cmd;
@@ -177,69 +295,114 @@ void motor_control(MOTOR_ENUM motor, MOTOR_CONTROL cmd, uint32_t period, MOTOR_T
  ******************************************************************************/
 static void motor_handler()
 {
+#ifdef MOTORDEBUG
+	static uint32_t handlerCount = 0;
+    static uint32_t nextPidPrint    = DEBUGCOUNTER_PID;  // 100 ms
+    static uint32_t nextMotorPrint  = DEBUGCOUNTER;      // 1000 ms
+
+#endif
 	uint8_t motorIdx;
 	for (uint8_t motorIdxModule = 0; motorIdxModule < motorsCount; motorIdxModule++)
 	{
+
 		motorIdx = motorsList[motorIdxModule];
+
 		if (motorCtrl[motorIdx].motorRunFlag == 1)
 		{
-			if (motorCtrl[motorIdx].counterHandler == motorCtrl[motorIdx].vel)
+			// --- PID update every 1ms ---
+			if ((++motorCtrl[motorIdx].pid_counter >= PID_UPDATE_TICKS) && (motorCtrl[motorIdx].calibFlag == 1)) {
+				motorCtrl[motorIdx].pid_counter = 0;
+				pid_update(motorIdx);
+			}
+
+			// --- Stepping logic each ISR tick ---
+			if (++motorCtrl[motorIdx].counterHandler >= motorCtrl[motorIdx].period)
 			{
-				
+				motorCtrl[motorIdx].counterHandler = 0;
+
+				// Set direction pin
 				if (motorCtrl[motorIdx].dir == pgm_read_byte(&motor_config[motorIdx].orientation))
 					digitalWrite(pgm_read_byte(&motor_config[motorIdx].dir_or_rpwm_pin), LOW);
 				else
 					digitalWrite(pgm_read_byte(&motor_config[motorIdx].dir_or_rpwm_pin), HIGH);
 				
-				
-				if (motorCtrl[motorIdx].toggle == 1)
-				{
-					if (motorCtrl[motorIdx].calibFlag == 0)
-					{
-						motorCtrl[motorIdx].toggle = 0;
-						digitalWrite(pgm_read_byte(&motor_config[motorIdx].pul_or_lpwm_pin), HIGH);
-						if (motorCtrl[motorIdx].dir == 1)
-						{
-						motorCtrl[motorIdx].pos++;
-						}
-						else
-						{
-						motorCtrl[motorIdx].pos--;
-						}
-					}
-					else
-					{
-						if (motorCtrl[motorIdx].dir == 1)
-						{
-							if ((motorCtrl[motorIdx].pos < pgm_read_dword(&motor_config[motorIdx].limit)) || (pgm_read_dword(&motor_config[motorIdx].limit) == 0))
-							{
+				// process motor pulses
+				if (motorCtrl[motorIdx].toggle) {
+					// Rising edge: actually step (if allowed)
+					motorCtrl[motorIdx].toggle = 0;
+					digitalWrite(pgm_read_byte(&motor_config[motorIdx].pul_or_lpwm_pin), HIGH);
+
+					if (motorCtrl[motorIdx].calibFlag == 0) {
+						// Not calibrated: free run
+						motorCtrl[motorIdx].pos += (motorCtrl[motorIdx].dir ? 1 : -1);
+					} else {
+						// Calibrated: enforce limits
+						uint32_t limit = pgm_read_dword(&motor_config[motorIdx].limit);
+
+						if (motorCtrl[motorIdx].dir) { // moving +
+							if ((limit == 0) || (motorCtrl[motorIdx].pos < limit)) {
 								motorCtrl[motorIdx].pos++;
-								motorCtrl[motorIdx].toggle = 0;
-								digitalWrite(pgm_read_byte(&motor_config[motorIdx].pul_or_lpwm_pin), HIGH);
+							} else {
+								// Hit upper limit -> stop
+								motorCtrl[motorIdx].motorRunFlag = 0;
 							}
-						}
-						else
-						{
-							if (motorCtrl[motorIdx].pos != 0)
-							{
+						} else { // moving -
+							if (motorCtrl[motorIdx].pos > 0) {
 								motorCtrl[motorIdx].pos--;
-								motorCtrl[motorIdx].toggle = 0;
-								digitalWrite(pgm_read_byte(&motor_config[motorIdx].pul_or_lpwm_pin),HIGH);
+							} else {
+								// Hit lower (0) limit -> stop
+								motorCtrl[motorIdx].motorRunFlag = 0;
 							}
 						}
 					}
+
 				}
 				else
 				{
 					motorCtrl[motorIdx].toggle = 1;
 					digitalWrite(pgm_read_byte(&motor_config[motorIdx].pul_or_lpwm_pin),LOW);
 				}
-				motorCtrl[motorIdx].counterHandler = 0;
+				
 			}
-
-		motorCtrl[motorIdx].counterHandler += P_BASE;
 		}
 	}
+
+
+#ifdef MOTORDEBUG
+
+		// ---- Now do the timing logic ONCE per ISR, not per motor ----
+    handlerCount++;
+
+    // Print every 100 ms
+    if (handlerCount >= nextPidPrint) {
+        for (uint8_t motorIdxModule = 0; motorIdxModule < motorsCount; motorIdxModule++) {
+            uint8_t motorIdx = motorsList[motorIdxModule];
+            if (motorCtrl[motorIdx].motorRunFlag) {
+                printValuesPid(motorIdx);
+            }
+        }
+        nextPidPrint += DEBUGCOUNTER_PID;
+    }
+
+    // Print every 1000 ms
+    if (handlerCount >= nextMotorPrint) {
+        for (uint8_t motorIdxModule = 0; motorIdxModule < motorsCount; motorIdxModule++) {
+            uint8_t motorIdx = motorsList[motorIdxModule];
+            if (motorCtrl[motorIdx].motorRunFlag) {
+                printValuesMotor(motorIdx);
+            }
+        }
+        nextMotorPrint += DEBUGCOUNTER;
+    }
+
+	// Optional: prevent overflow drift
+    if (handlerCount >= DEBUGCOUNTER * 100UL) { // e.g. every 100s
+        handlerCount   = 0;
+        nextPidPrint   = DEBUGCOUNTER_PID;
+        nextMotorPrint = DEBUGCOUNTER;
+    }
+		
+#endif
 }
 
 /******************************************************************************
@@ -324,4 +487,29 @@ void motors_init(void){
 		digitalWrite(13,HIGH);
 		DEBUG_PRINTF("Main power relay activated\nSystem online!\n");
 	}
+}
+
+/******************************************************************************
+ * @brief Converts the motor target angle to the stepper motor tick value
+ * input -> output
+ * limit/2 -> 0
+ * 0 -> -45
+ * limit -> 45
+ ******************************************************************************/
+uint32_t angleToTick(int16_t angle, uint8_t motorID)
+{
+	uint32_t limitDir = pgm_read_dword(&motor_config[motorID].limit);
+	// Calculate the motor tick  based on the angle and limit
+	double motorTick = ((double)(angle + 45) / 90.0) * limitDir;
+	if (motorTick < 0)
+	    motorTick = 0;
+	return (uint32_t)motorTick;
+}
+
+/******************************************************************************
+ * @brief Return motor run flag
+ ******************************************************************************/
+void readMotorState(uint8_t motorID, uint8_t *runFlagCheck)
+{
+	*runFlagCheck = motorCtrl[motorID].motorRunFlag;
 }

@@ -11,6 +11,11 @@
 
 /****************************** Constants *************************************/
 
+// debug
+#define MOTORDEBUG
+#define DEBUGCOUNTER (1000000 / P_BASE)
+#define DEBUGCOUNTER_PID (100000 / P_BASE)
+
 // rotation speed - choose only multiples of P_BASE.
 #define P_BASE             40 // 40 us
 //#define MOTOR_LAST         (sizeof(motor_config) / sizeof(motor_config[0]))
@@ -18,7 +23,28 @@
 
 #define INTERNAL_WHEEL_FACTOR 0.8928
 #define EXTERNAL_WHEEL_FACTOR 1.0768
-#define CAN_ANGLE_OFFSET 100
+
+
+#define PID_UPDATE_TICKS     25          // 25 * 40us = 1ms
+#define POS_DEADBAND         5
+
+#define PID_SHIFT            8
+#define PID_INT_MAX          (200000L << PID_SHIFT) // give I room, you were clipping too early
+
+// “Speed units” are arbitrary internal units (not Hz). Tune to taste.
+#define PID_OUT_MAX_SPEED    12000
+#define PID_OUT_MIN_SPEED    200
+
+// Feed‑forward mapping (|error| -> base speed)
+#define FF_ERR_MAX           4000        // above this error, use max FF speed
+#define FF_SPEED_MIN         200
+#define FF_SPEED_MAX         10000
+
+// Period limits, in ISR ticks (40us units)
+#define MIN_PERIOD_40US      1           // fastest
+#define MAX_PERIOD_40US      2000        // slowest
+
+
 
 // Available motor operations
 typedef enum{
@@ -38,7 +64,8 @@ typedef enum{
     MOTOR_Z,
     MOTOR_ROTATE,
     MOTOR_CUT,
-    MOTOR_TURBINES,
+    MOTOR_TURBINE_1,
+    MOTOR_TURBINE_2,
     MOTOR_GATE_1,
     MOTOR_GATE_2,
     MOTOR_LAST,
@@ -54,9 +81,6 @@ typedef enum{
 
 const uint8_t MCU_MAIN_MOTORS[] PROGMEM = {
     MOTOR_TRACTION_RIGHT,
-    MOTOR_TURBINES,
-    MOTOR_GATE_1,
-    MOTOR_GATE_2
 };
 
 const uint8_t HW_DIR_RIGHT_MOTORS[] PROGMEM = {
@@ -85,6 +109,13 @@ const uint8_t HW_CUT_MOTORS[] PROGMEM = {
     MOTOR_CUT
 };
 
+const uint8_t HW_TURBINES_MOTORS[] PROGMEM = {
+    MOTOR_TURBINE_1,
+    MOTOR_TURBINE_2,
+    MOTOR_GATE_1,
+    MOTOR_GATE_2
+};
+
 // Fixed motor parameters 
 struct motor_config_t
 {
@@ -98,7 +129,10 @@ struct motor_config_t
     const uint8_t en_pin;                               // Driver Enable pin
     const uint8_t calib_pin;                            // End limit pin, 0 = no pin
     const uint8_t relay_pin;                            // Power Supply relay pin
-    const uint8_t orientation;                          // dir value which pulses increment position                   
+    const uint8_t orientation;                          // dir value which pulses increment position
+    const uint16_t PID_P;                                // PID P value
+    const uint16_t PID_I;                                // PID I value
+    const uint16_t PID_D;                                // PID D value
 };
 
 
@@ -111,12 +145,12 @@ struct motor_config_t
  * uint32_t -> pgm_read_dword()
  * ********************************************************************/
 const struct motor_config_t motor_config[] PROGMEM =
-{ //{motorType, limit, defaultSpeedForward, defaultSpeedBackwards, motorIdx, dir_pin/rpwm_pin, pul_pin/lpwm_pin, en_pin, calib_pin, relay_pin, orientation}
-    {STEPPER_MOTOR, 6700,   3*P_BASE,   3*P_BASE,  MOTOR_DIR_RIGHT,     2,  3,  4,  5,  6,  0},
-    {STEPPER_MOTOR, 6700,   3*P_BASE,   3*P_BASE,  MOTOR_DIR_LEFT,      2,  3,  4,  5,  6,  0},
-    {PWM_MOTOR,     0,      200,        200,       MOTOR_TRACTION_RIGHT,5,  2,  17, 0,  3,  0},
-    {PWM_MOTOR,     0,      200,        200,       MOTOR_TRACTION_LEFT, 9,  10, A3, 0,  A2, 0},
-    {STEPPER_PID,   6700,   3*P_BASE,   3*P_BASE,  MOTOR_X,             4,  3,  5,  0,  A1, 0}};
+{ //{motorType, limit, defaultSpeedForward, defaultSpeedBackwards, motorIdx, dir_pin/rpwm_pin, pul_pin/lpwm_pin, en_pin, calib_pin, relay_pin, orientation, PID_P, PID_I, PID_D}
+    {STEPPER_MOTOR, 6700,   3,          3,  MOTOR_DIR_RIGHT,     3,  4,  2,  6,  5,  0,  100, 1, 0,},
+    {STEPPER_MOTOR, 6700,   3*P_BASE,   3*P_BASE,  MOTOR_DIR_LEFT,      3,  4,  2,  6,  5,  0,  0, 0, 0,},
+    {PWM_MOTOR,     0,      200,        200,       MOTOR_TRACTION_RIGHT,5,  2,  17, 0,  3,  0,  0, 0, 0,},
+    {PWM_MOTOR,     0,      200,        200,       MOTOR_TRACTION_LEFT, 9,  10, A3, 0,  A2, 0,  0, 0, 0,},
+    {STEPPER_PID,   6700,   3*P_BASE,   3*P_BASE,  MOTOR_X,             4,  3,  5,  0,  A1, 0,  0, 0, 0,},};
 
 
 
@@ -126,13 +160,17 @@ const struct motor_config_t motor_config[] PROGMEM =
 struct motor_control_t
 {
     volatile uint32_t pos;      // Current motor position
-    int vel;                    // motor speed ("ticks period")
+    uint32_t targetPos;         // Target position
+    int period;                    // motor speed ("ticks period")
     int counterHandler;         // handler counter for speed control
     uint8_t dir : 1;            // current motor direction, 1 -> increments ticks, 0 -> decrements ticks
     uint8_t motorRunFlag : 1;   // flag to indicate the current motor operation status
     uint8_t cmdAnterior : 2;    // previous given command to the motor controller
     volatile uint8_t toggle : 1;// flag to control the controller pulses
     uint8_t calibFlag : 1;      // flag to indicate if the motor is calibrated, can be also used to control the motor without pulses
+    int32_t  pid_integral;      // PID integral value
+    int32_t  pid_prev_err;      // PID previous error value
+    uint16_t pid_counter;       // PID counter for the handler
 };
 
 /****************************** Function Prototypes *************************************/
@@ -143,6 +181,8 @@ void motor_control(MOTOR_ENUM motor, MOTOR_CONTROL cmd, uint32_t period, MOTOR_T
 void disable_motor(MOTOR_ENUM motor);
 void enable_motor(MOTOR_ENUM motor);
 void calibrateMotor(MOTOR_ENUM motor);
-void goto_pos(MOTOR_ENUM motor, uint32_t targetPos, uint32_t period);
+void goto_pos(MOTOR_ENUM motor, uint32_t targetPos);
+uint32_t angleToTick(int16_t angle, uint8_t motorID);
+void readMotorState(uint8_t motorID, uint8_t *runFlagCheck);
 
 #endif
