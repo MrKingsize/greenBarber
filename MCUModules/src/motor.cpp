@@ -48,7 +48,7 @@ void printValuesPid(uint8_t motor)
 /*******************************************************************************
  * @brief Motor activation function
  *******************************************************************************/
-void enable_motor(MOTOR_ENUM motor)
+void enable_motor(uint8_t motor)
 {
 	if (motor < MOTOR_LAST)
 	{
@@ -60,7 +60,7 @@ void enable_motor(MOTOR_ENUM motor)
 /*******************************************************************************
  * @brief Motor deactivation function
  *******************************************************************************/
-void disable_motor(MOTOR_ENUM motor)
+void disable_motor(uint8_t motor)
 {
 	if (motor < MOTOR_LAST)
 	{
@@ -68,12 +68,28 @@ void disable_motor(MOTOR_ENUM motor)
 	}  
 }
 
+/*******************************************************************************
+ * @brief Clamps a value between a minimum and maximum
+ * @param v Value to clamp
+ * @param lo Minimum value
+ * @param hi Maximum value
+ * @return Clamped value
+ *******************************************************************************/
 static inline int32_t clamp_i32(int32_t v, int32_t lo, int32_t hi) {
     if (v < lo) return lo;
     if (v > hi) return hi;
     return v;
 }
 
+/*******************************************************************************
+ * @brief Maps a value from one range to another
+ * @param x Value to map
+ * @param in_min Minimum of the input range
+ * @param in_max Maximum of the input range
+ * @param out_min Minimum of the output range
+ * @param out_max Maximum of the output range
+ * @return Mapped value
+ *******************************************************************************/
 static inline int32_t map_linear_i32(int32_t x, int32_t in_min, int32_t in_max,
                                      int32_t out_min, int32_t out_max)
 {
@@ -82,14 +98,22 @@ static inline int32_t map_linear_i32(int32_t x, int32_t in_min, int32_t in_max,
     return out_min + (int64_t)(out_max - out_min) * (x - in_min) / (in_max - in_min);
 }
 
+/*******************************************************************************
+ * @brief Converts error to feed-forward speed
+ * @param abs_err Absolute error in [0, FF_ERR_MAX]
+ * @return Speed in [FF_SPEED_MIN, FF_SPEED_MAX]
+ *******************************************************************************/
 static inline int32_t ff_error_to_speed(int32_t abs_err)
 {
     return map_linear_i32(abs_err, 0, FF_ERR_MAX, FF_SPEED_MIN, FF_SPEED_MAX);
 }
 
-
-
-static inline uint16_t speed_to_period_40us(int32_t speed)
+/*******************************************************************************
+ * @brief Converts speed to period in 40us units
+ * @param speed Speed in [0, PID_OUT_MAX_SPEED]
+ * @return Period in 40us units
+ *******************************************************************************/
+static inline uint16_t speed_to_period_40us(int32_t speed, uint8_t motorIdx)
 {
     speed = clamp_i32(speed, PID_OUT_MIN_SPEED, PID_OUT_MAX_SPEED);
 
@@ -97,13 +121,17 @@ static inline uint16_t speed_to_period_40us(int32_t speed)
     uint32_t num   = (uint32_t)(PID_OUT_MAX_SPEED - speed);
     uint32_t denom = (PID_OUT_MAX_SPEED - PID_OUT_MIN_SPEED);
 
-    uint32_t period = MIN_PERIOD_40US +
-        ((uint32_t)(MAX_PERIOD_40US - MIN_PERIOD_40US) * num) / denom;
+	uint16_t minPeriod = pgm_read_byte(&motor_config[motorIdx].defaultSpeedForward);
+    uint32_t period = minPeriod +
+        ((uint32_t)(MAX_PERIOD_40US - minPeriod) * num) / denom;
 
     return (uint16_t)period;
 }
 
-
+/*******************************************************************************
+ * @brief PID update function
+ * @param motorIdx Index of the motor to update
+ *******************************************************************************/
 static void pid_update(uint8_t motorIdx)
 {
     // Gains (raw -> fixed point)
@@ -124,6 +152,10 @@ static void pid_update(uint8_t motorIdx)
         motorCtrl[motorIdx].period = MAX_PERIOD_40US;
         motorCtrl[motorIdx].pid_integral = 0;
         motorCtrl[motorIdx].pid_prev_err = error;
+		uint8_t holdFlag = pgm_read_byte(&motor_config[motorIdx].holdFlag);
+		if (holdFlag == 0)
+			disable_motor(motorIdx);
+		DEBUG_PRINTF("Motor %d stopped, tick error: %d\n", motorIdx, error);
         return;
     }
 
@@ -165,47 +197,18 @@ static void pid_update(uint8_t motorIdx)
     int32_t speed_cmd = ff_speed + ((pid_out >= 0) ? pid_out : -pid_out);
 
     // To period
-    uint16_t period = speed_to_period_40us(speed_cmd);
+    uint16_t period = speed_to_period_40us(speed_cmd, motorIdx);
     motorCtrl[motorIdx].period = period;
 }
 
-
-
-
 /*******************************************************************************
- * @brief go to position control function without PID
+ * @brief Initializes the motors
  *******************************************************************************/
 void goto_pos(MOTOR_ENUM motor, uint32_t targetPos)
 {
-	
+	enable_motor(motor);
 	motorCtrl[motor].targetPos = targetPos;
 	motorCtrl[motor].motorRunFlag = 1;
-	/*if (motor < MOTOR_LAST)
-	{
-		if (abs(targetPos - motorCtrl[motor].pos) > 10)
-			if (targetPos > motorCtrl[motor].pos)
-			{
-				uint32_t motorLimit = pgm_read_dword(&motor_config[motor].limit);
-				if(motorCtrl[motor].pos < targetPos && motorCtrl[motor].pos < motorLimit)
-				{
-					motor_control(motor, MOTOR_PLUS_CMD, motor_config[motor].defaultSpeedForward, STEPPER_MOTOR);
-				}
-			}
-			else
-			{
-				if(motorCtrl[motor].pos > targetPos && motorCtrl[motor].pos > 0)
-				{
-					motor_control(motor, MOTOR_MINUS_CMD, motor_config[motor].defaultSpeedBackwards, STEPPER_MOTOR);
-				}
-			}
-		else
-		{
-			TRACE_PRINTF("Motor %d reached target position %d\n", motor, targetPos);
-			motorCtrl[motor].motorRunFlag = 0;
-		}
-		
-		//motor_control(motor,MOTOR_STOP_CMD,period);
-	}*/
 }
 
 /******************************************************************************
@@ -216,15 +219,15 @@ void calibrateMotor(MOTOR_ENUM motor)
 	TRACE_PRINTF("Calibrating Motor %d\n", motor);
 	uint8_t calibPin = pgm_read_byte(&motor_config[motor].calib_pin);
 	while(digitalRead(calibPin) == 1){
-		motor_control(motor, MOTOR_MINUS_CMD, pgm_read_word(&motor_config[motor].defaultSpeedBackwards), STEPPER_MOTOR);
+		motor_control(motor, MOTOR_MINUS_CMD, pgm_read_byte(&motor_config[motor].defaultSpeedBackwards), STEPPER_MOTOR);
 		delay(1);
 	}
-	//motor_control(motor, MOTOR_STOP_CMD, pgm_read_word(&motor_config[motor].defaultSpeedBackwards), STEPPER_MOTOR);
+	//motor_control(motor, MOTOR_STOP_CMD, pgm_read_byte(&motor_config[motor].defaultSpeedBackwards), STEPPER_MOTOR);
 	TRACE_PRINTF("Zero reseted!\n");
 	motorCtrl[motor].calibFlag = 1;
 	motorCtrl[motor].pos = 0;
 	//goto_pos(motor, 2000);
-	//motor_control(motor, MOTOR_STOP_CMD, pgm_read_word(&motor_config[motor].defaultSpeedBackwards), STEPPER_MOTOR);
+	//motor_control(motor, MOTOR_STOP_CMD, pgm_read_byte(&motor_config[motor].defaultSpeedBackwards), STEPPER_MOTOR);
 }
 
 /******************************************************************************

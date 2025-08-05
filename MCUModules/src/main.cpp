@@ -104,9 +104,13 @@ void debug_function()
 	}
 	goto_pos(MOTOR_DIR_RIGHT, motorTickTarget);
 
+	uint8_t calibPin = pgm_read_byte(&motor_config[MOTOR_DIR_RIGHT].calib_pin);
+	delay(1000);
 	while (1)
 	{
-
+		
+		if (digitalRead(calibPin) == 0)
+			disable_motor(MOTOR_DIR_RIGHT);
 		//readMotorState(MOTOR_DIR_RIGHT, &loopControlActiveFlag);
 		
 
@@ -127,11 +131,10 @@ void loop()
 	// debug loop
 	
 	//while (1) {debug_function();}
-	debug_function();
+	//debug_function();
 	//while (1);
 
 	uint8_t myModuleIdx = get_my_module_id();
-	uint8_t loopControlActiveFlag = 0;	
 
 	while(1){
 
@@ -158,11 +161,11 @@ void loop()
 				{
 					uint16_t angleRight, angleLeft;
 					calculate_wheels_angles(cmd.payload, &angleRight, &angleLeft);
-					DEBUG_PRINTF("Action: Update direction! target = %dº right = %dº, left = %dº\n", cmd.payload, angleRight, angleLeft);
+					DEBUG_PRINTF("Action: Update direction! targetCan = %dº rightCan = %dº, leftCan = %dº\n", cmd.payload, angleRight, angleLeft);
 
 					//send can messages
 					my_can_send((uint8_t)MOD_SEL_HW_DIR_RIGHT, (uint8_t)CMD_SET_DIR_ANGLE_RIGHT, angleRight);
-					//my_can_send((uint8_t)MOD_SEL_HW_DIR_LEFT, (uint8_t)CMD_SET_DIR_ANGLE_LEFT, angleLeft);
+					my_can_send((uint8_t)MOD_SEL_HW_DIR_LEFT, (uint8_t)CMD_SET_DIR_ANGLE_LEFT, angleLeft);
 				}
 				else if (cmd.cmd == CMD_MOVE_FORWARD)
 				{
@@ -214,17 +217,12 @@ void loop()
 			else if (myModuleIdx == MOD_SEL_HW_DIR_RIGHT)
 			{
 				static uint32_t motorTickTarget = 0;
-				if (cmd.cmd == CMD_SET_DIR_ANGLE_RIGHT || loopControlActiveFlag)
+				if (cmd.cmd == CMD_SET_DIR_ANGLE_RIGHT)
 				{
-					if (loopControlActiveFlag == 0)
-					{
-						int16_t angleTarget = cmd.payload - CAN_ANGLE_OFFSET;
-						motorTickTarget = angleToTick(angleTarget, MOTOR_DIR_RIGHT);
-						DEBUG_PRINTF("Action: Direction target update! %d motorTick: %d\n", angleTarget, motorTickTarget);
-					}
-					
+					int16_t angleTarget = cmd.payload - CAN_ANGLE_OFFSET;
+					motorTickTarget = angleToTick(angleTarget, MOTOR_DIR_RIGHT);
+					DEBUG_PRINTF("Action: Direction target update! %d motorTick: %d\n", angleTarget, motorTickTarget);
 					goto_pos(MOTOR_DIR_RIGHT, motorTickTarget);
-					readMotorState(MOTOR_DIR_RIGHT, &loopControlActiveFlag);
 				}
 				else if (cmd.cmd == CMD_CALIBRATE_DIR_RIGHT)
 				{
@@ -234,12 +232,13 @@ void loop()
 			}
 			else if (myModuleIdx == MOD_SEL_HW_DIR_LEFT)
 			{
-				if (cmd.cmd == CMD_SET_DIR_ANGLE_LEFT || loopControlActiveFlag)
+				static uint32_t motorTickTarget = 0;
+				if (cmd.cmd == CMD_SET_DIR_ANGLE_LEFT)
 				{
-					DEBUG_PRINTF("Action: Direction target update! %d\n", cmd.payload);
-					uint32_t motorTick = angleToTick(cmd.payload, MOTOR_DIR_LEFT);
-					goto_pos(MOTOR_DIR_LEFT, motorTick);
-					readMotorState(MOTOR_DIR_LEFT, &loopControlActiveFlag);
+					int16_t angleTarget = cmd.payload - CAN_ANGLE_OFFSET;
+					motorTickTarget = angleToTick(angleTarget, MOTOR_DIR_LEFT);
+					DEBUG_PRINTF("Action: Direction target update! %d motorTick: %d\n", angleTarget, motorTickTarget);
+					goto_pos(MOTOR_DIR_LEFT, motorTickTarget);
 				}
 				else if (cmd.cmd == CMD_CALIBRATE_DIR_LEFT)
 				{

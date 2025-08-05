@@ -16,7 +16,7 @@
 
 /*************************** Global Variables ********************************/
 #define DETECT_TRESHOLD 1
-#define CONTROLLER_ZERO_POINT 128
+#define CONTROLLER_ZERO_POINT 127
 
 int error = 0;
 byte type = 0;
@@ -219,19 +219,22 @@ void get_controller_cmd(void)
             
         }
 
+        DEBUG_PRINTF("controller targetDirAnt: %d, dirAngleValue: %d\n", targetDirAnt, dirAngleValue);
+
         //calculate direction angle
-        if (abs(targetDirAnt - dirAngleValue) > DETECT_TRESHOLD)
+        if ((abs(targetDirAnt - dirAngleValue) > 1) && (dirAngleValue == CONTROLLER_ZERO_POINT))
+        {
+            targetDirAnt = dirAngleValue;
+            enqueue_command(MOD_SEL_MCU_MAIN, CMD_SET_DIRECTION_ANGLE, 0 + CAN_ANGLE_OFFSET);
+        }  
+        else if (abs(targetDirAnt - dirAngleValue) > DETECT_TRESHOLD)
         {
             targetDirAnt = dirAngleValue;
             double angle = ((dirAngleValue / 255.0) * 90.0) - 45.0;
             uint8_t targetAngleCan = (uint8_t)(angle + CAN_ANGLE_OFFSET);
             enqueue_command(MOD_SEL_MCU_MAIN, CMD_SET_DIRECTION_ANGLE, targetAngleCan);
         }
-        else if ((abs(targetDirAnt - dirAngleValue) > 1) && (dirAngleValue == CONTROLLER_ZERO_POINT))
-        {
-            targetDirAnt = dirAngleValue;
-            enqueue_command(MOD_SEL_MCU_MAIN, CMD_SET_DIRECTION_ANGLE, 0);
-        }        
+               
     }
 
     //if (ps2x.Button(PSB_L1) || ps2x.Button(PSB_PAD_UP) || ps2x.Button(PSB_PAD_DOWN))
