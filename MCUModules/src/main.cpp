@@ -21,7 +21,6 @@
  * Global Constants
  ******************************************************************/
 
-
 /*******************************************************************
  * Global Variables
  ******************************************************************/ 
@@ -66,8 +65,9 @@ void setup() {
 	
 	Serial.print("Setup\n");
 	delay(300);
+#ifdef MODULE_ID_MOD_SEL_MCU_MAIN
 	mon_init();
-
+#endif
 	led_init();
 	
 	//set_my_module_id(MOD_SEL_HW_DIR_LEFT);
@@ -103,34 +103,34 @@ void setup() {
 #endif
 }
 
-void debug_function()
-{
-	digitalWrite(5, LOW);
-	calibrateMotor(MOTOR_DIR_RIGHT);
-	static uint32_t motorTickTarget = 0;
-	uint8_t loopControlActiveFlag = 0;
-	
-	if (loopControlActiveFlag == 0)
-	{
-		//int16_t angleTarget = cmd.payload - CAN_ANGLE_OFFSET;
-		int16_t angleTarget = 140 - CAN_ANGLE_OFFSET;
-		motorTickTarget = angleToTick(angleTarget, MOTOR_DIR_RIGHT);
-		DEBUG_PRINTF("Action: Direction target update! %d motorTick: %d\n", angleTarget, motorTickTarget);
-	}
-	goto_pos(MOTOR_DIR_RIGHT, motorTickTarget);
-
-	uint8_t calibPin = pgm_read_byte(&motor_config[MOTOR_DIR_RIGHT].calib_pin);
-	delay(1000);
-	while (1)
-	{
-		if (digitalRead(calibPin) == 0)
-			disable_motor(MOTOR_DIR_RIGHT);
-		//readMotorState(MOTOR_DIR_RIGHT, &loopControlActiveFlag);
-		
-		delay(50);
-	}
-	
-}
+//void debug_function()
+//{
+//	digitalWrite(5, LOW);
+//	calibrateMotor(MOTOR_DIR_RIGHT);
+//	static uint32_t motorTickTarget = 0;
+//	uint8_t loopControlActiveFlag = 0;
+//	
+//	if (loopControlActiveFlag == 0)
+//	{
+//		//int16_t angleTarget = cmd.payload - CAN_ANGLE_OFFSET;
+//		int16_t angleTarget = 140 - CAN_ANGLE_OFFSET;
+//		motorTickTarget = angleToTick(angleTarget, MOTOR_DIR_RIGHT);
+//		DEBUG_PRINTF("Action: Direction target update! %d motorTick: %d\n", angleTarget, motorTickTarget);
+//	}
+//	goto_pos(MOTOR_DIR_RIGHT, motorTickTarget);
+//
+//	uint8_t calibPin = pgm_read_byte(&motor_config[MOTOR_DIR_RIGHT].calib_pin);
+//	delay(1000);
+//	while (1)
+//	{
+//		if (digitalRead(calibPin) == 0)
+//			disable_motor(MOTOR_DIR_RIGHT);
+//		//readMotorState(MOTOR_DIR_RIGHT, &loopControlActiveFlag);
+//		
+//		delay(50);
+//	}
+//	
+//}
 
 /******************************************************************************
  * @brief main loop function
@@ -149,6 +149,10 @@ void loop()
 	if (myModuleIdx != MOD_SEL_MCU_MAIN)
 	{
 		set_mon_state(STATE_COMMS_NOT_CONNECTED);
+	}
+	if (myModuleIdx == MOD_SEL_HW_DIR_LEFT)
+	{
+		calibrateMotor(MOTOR_DIR_LEFT);
 	}
 
 	while(1)
@@ -191,6 +195,8 @@ void loop()
  ******************************************************************************/
 static void mod_main_function()
 {
+#ifdef MODULE_ID_MOD_SEL_MCU_MAIN
+	
 #ifndef __AVR_ATmega32U4__
 		if (get_my_module_id() == MOD_SEL_MCU_MAIN)
 		{
@@ -280,7 +286,9 @@ static void mod_main_function()
 			DEBUG_PRINTF("PING_ACK received from module %d\n", cmd.payload);
 			set_mod_mon_state(STATE_COMMS_CONNECTED, cmd.payload);
 		}
+		delay(TIMEOUT_SESSION);
 	}
+	#endif
 }
 
 /******************************************************************************
@@ -288,6 +296,7 @@ static void mod_main_function()
  ******************************************************************************/
 static void mod_dir_right_function()
 {
+	#ifdef MODULE_ID_MOD_SEL_HW_DIR_RIGHT
 	//get command
 	command_t cmd;
 	if (dequeue_command(&cmd))
@@ -295,6 +304,10 @@ static void mod_dir_right_function()
 		static uint32_t motorTickTarget = 0;
 		if (cmd.cmd == CMD_SET_DIR_ANGLE_RIGHT)
 		{
+			if (getCalibratedFlag(MOTOR_DIR_RIGHT) == 0)
+			{
+				calibrateMotor(MOTOR_DIR_RIGHT);
+			}
 			int16_t angleTarget = cmd.payload - CAN_ANGLE_OFFSET;
 			motorTickTarget = angleToTick(angleTarget, MOTOR_DIR_RIGHT);
 			DEBUG_PRINTF("Action: Direction target update! %d motorTick: %d\n", angleTarget, motorTickTarget);
@@ -308,9 +321,11 @@ static void mod_dir_right_function()
 		{
 			DEBUG_PRINTF("PING received\n");
 			set_mon_state(STATE_COMMS_CONNECTED);
-			my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)get_my_module_id());
+			//my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)get_my_module_id());
 		}
+		delay(TIMEOUT_SESSION);
 	}
+	#endif
 }
 
 /******************************************************************************
@@ -318,6 +333,7 @@ static void mod_dir_right_function()
  ******************************************************************************/
 static void mod_dir_left_function()
 {
+	#ifdef MODULE_ID_MOD_SEL_HW_DIR_LEFT
 	//get command
 	command_t cmd;
 	if (dequeue_command(&cmd))
@@ -325,10 +341,11 @@ static void mod_dir_left_function()
 		static uint32_t motorTickTarget = 0;
 		if (cmd.cmd == CMD_SET_DIR_ANGLE_LEFT)
 		{
+			
 			int16_t angleTarget = cmd.payload - CAN_ANGLE_OFFSET;
 			motorTickTarget = angleToTick(angleTarget, MOTOR_DIR_LEFT);
 			DEBUG_PRINTF("Action: Direction target update! %d motorTick: %d\n", angleTarget, motorTickTarget);
-			//goto_pos(MOTOR_DIR_LEFT, motorTickTarget);
+			goto_pos(MOTOR_DIR_LEFT, motorTickTarget);
 		}
 		else if (cmd.cmd == CMD_CALIBRATE_DIR_LEFT)
 		{
@@ -340,10 +357,12 @@ static void mod_dir_left_function()
 			//DEBUG_PRINTF("PING received, replying, myid = %d\n",id);
 			set_mon_state(STATE_COMMS_CONNECTED);
 			delay(100);
-			my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)id);
+			//my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)id);
 			//ping_reply();
 		}
+		delay(TIMEOUT_SESSION);
 	}
+	#endif
 }
 
 /******************************************************************************
@@ -351,6 +370,7 @@ static void mod_dir_left_function()
  ******************************************************************************/
 static void mod_x_traction_left_function()
 {
+	#ifdef MODULE_ID_MOD_SEL_HW_X_TRACTION_LEFT
 	//get command
 	command_t cmd;
 	if (dequeue_command(&cmd))
@@ -376,7 +396,9 @@ static void mod_x_traction_left_function()
 			set_mon_state(STATE_COMMS_CONNECTED);
 			my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)get_my_module_id());
 		}
+		delay(TIMEOUT_SESSION);
 	}
+	#endif
 }
 
 /******************************************************************************

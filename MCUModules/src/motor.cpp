@@ -211,6 +211,11 @@ void goto_pos(MOTOR_ENUM motor, uint32_t targetPos)
 	motorCtrl[motor].motorRunFlag = 1;
 }
 
+uint8_t getCalibratedFlag(MOTOR_ENUM motor)
+{
+	return motorCtrl[motor].calibFlag;
+}
+
 /******************************************************************************
  * @brief calibrates motor
  ******************************************************************************/

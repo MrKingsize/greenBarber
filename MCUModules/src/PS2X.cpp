@@ -28,7 +28,7 @@ PS2X ps2x; // create PS2 Controller Class
 
 
 /****************************** Functions *************************************/
-
+#ifdef MODULE_ID_MOD_SEL_MCU_MAIN
 uint8_t controller_init(void)
 {
     TRACE_PRINTF("Entering Function\n");
@@ -258,8 +258,4 @@ void get_controller_cmd(void)
     
     
 }
-
-uint8_t get_forward_speed(void)
-{
-    return forwardSpeed;
-}
+#endif

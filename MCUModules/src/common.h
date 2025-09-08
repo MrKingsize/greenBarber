@@ -15,7 +15,10 @@
 #define MAIN_LOOP_DELAY 50 // ms
 #define TOTAL_MAIN_LOOP_DELAY (MAIN_LOOP_DELAY + TIMEOUT_SESSION)// ms
 
-
+//#define MODULE_ID_MOD_SEL_MCU_MAIN
+//#define MODULE_ID_MOD_SEL_HW_DIR_RIGHT
+#define MODULE_ID_MOD_SEL_HW_DIR_LEFT
+//#define MODULE_ID_MOD_SEL_HW_X_TRACTION_LEFT
 
 #define DEBUG_PRINTF(...)                     \
   do {                                        \

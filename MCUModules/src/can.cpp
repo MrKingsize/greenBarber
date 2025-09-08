@@ -105,7 +105,7 @@ void my_can_send(uint8_t target_module_id, uint8_t cmd, uint16_t payload)
 
     memcpy(txMsg.Buffer, canMsg, sizeof(canMsg));
     isotp.send(&txMsg);
-    //DEBUG_PRINTF("Sent cmd %d to destination %d, payload %d\n", cmd, target_module_id, payload);
+    DEBUG_PRINTF("Sent cmd %d to destination %d, payload %d\n", cmd, target_module_id, payload);
     debug_counter_increase();
 }
 

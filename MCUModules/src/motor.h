@@ -185,5 +185,6 @@ void calibrateMotor(MOTOR_ENUM motor);
 void goto_pos(MOTOR_ENUM motor, uint32_t targetPos);
 uint32_t angleToTick(int16_t angle, uint8_t motorID);
 void readMotorState(uint8_t motorID, uint8_t *runFlagCheck);
+uint8_t getCalibratedFlag(MOTOR_ENUM motor);
 
 #endif

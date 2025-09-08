@@ -29,6 +29,5 @@
  /****************************** Function Prototypes *************************************/
  uint8_t controller_init(void);
  void get_controller_cmd(void);
- uint8_t get_forward_speed(void);
  
  #endif

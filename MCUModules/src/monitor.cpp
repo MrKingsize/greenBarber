@@ -13,7 +13,7 @@
 #include "can.h"
 
 /*************************** Global Variables ********************************/
-
+#ifdef MODULE_ID_MOD_SEL_MCU_MAIN
 struct modulestate_t moduleState[MODULE_NUM] = {0};
 
 /****************************** Functions *************************************/
@@ -105,3 +105,4 @@ uint8_t mon_ctrl(void)
     loopCounter++;
     return moduleConnectedBits;
 }
+#endif
