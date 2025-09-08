@@ -23,6 +23,8 @@
 // If adding new cmds add also in moduleCmdMap
 typedef enum
 {
+    CMD_COMMS_PING = 0,
+    CMD_COMMS_PING_ACK,
     CMD_SET_DIR_ANGLE_RIGHT,
     CMD_READ_DIR_ANGLE_RIGHT,
     CMD_CALIBRATE_DIR_RIGHT,
@@ -73,7 +75,8 @@ typedef enum
     READ_DIRECTION_STATE_DIRECTION = 32,     // Read internal state direction module
 
     // power modules commands list
-    READ_POWER_STATUS = 40      // Read power status
+    READ_POWER_STATUS = 40,      // Read power status
+
 } CMD_MCU_MAIN_MODULE_ENUM_E;
 
 typedef enum
@@ -84,6 +87,7 @@ typedef enum
     ERROR_PAYLOAD_OUT_OF_RANGE = 12    // Payload Out Of Supported Range
 } ERROR_CODE_ENUM_E;
 
+// Modules commands receiving list for module byte
 const uint8_t MCU_MAIN_CMDS[] PROGMEM = {
     CMD_SET_COORDINATE_X, 
     CMD_SET_COORDINATE_Y, 
@@ -99,19 +103,22 @@ const uint8_t MCU_MAIN_CMDS[] PROGMEM = {
     CMD_SET_DIRECTION_ANGLE, 
     CMD_CALIBRATE_DIRECTION, 
     READ_DIRECTION_STATE_DIRECTION, 
-    READ_POWER_STATUS
+    READ_POWER_STATUS,
+    CMD_COMMS_PING_ACK
 };
 
 const uint8_t HW_DIR_RIGHT_CMDS[] PROGMEM = {
     CMD_SET_DIR_ANGLE_RIGHT, 
     CMD_READ_DIR_ANGLE_RIGHT, 
-    CMD_CALIBRATE_DIR_RIGHT
+    CMD_CALIBRATE_DIR_RIGHT,
+    CMD_COMMS_PING
 };
 
 const uint8_t HW_DIR_LEFT_CMDS[] PROGMEM = {
     CMD_SET_DIR_ANGLE_LEFT, 
     CMD_READ_DIR_ANGLE_LEFT, 
-    CMD_CALIBRATE_DIR_LEFT
+    CMD_CALIBRATE_DIR_LEFT,
+    CMD_COMMS_PING
 };
 
 const uint8_t HW_X_TRACTION_LEFT_CMDS[] PROGMEM = {
@@ -120,30 +127,35 @@ const uint8_t HW_X_TRACTION_LEFT_CMDS[] PROGMEM = {
     CMD_CALIBRATE_X, 
     CMD_SET_TRACTION_SPEED_FORWARD_LEFT,
     CMD_SET_TRACTION_SPEED_BACKWARD_LEFT,
-    CMD_SET_TRACTION_SPEED_STOP_LEFT
+    CMD_SET_TRACTION_SPEED_STOP_LEFT,
+    CMD_COMMS_PING
 };
 
 const uint8_t HW_Y_CMDS[] PROGMEM = {
     CMD_SET_Y_TICK, 
     CMD_READ_Y_TICK, 
-    CMD_CALIBRATE_Y
+    CMD_CALIBRATE_Y,
+    CMD_COMMS_PING
 };
 
 const uint8_t HW_Z_CMDS[] PROGMEM = {
     CMD_SET_Z_TICK, 
     CMD_READ_Z_TICK, 
-    CMD_CALIBRATE_Z
+    CMD_CALIBRATE_Z,
+    CMD_COMMS_PING
 };
 
 const uint8_t HW_CUT_CMDS[] PROGMEM = {
     CMD_TURN_ON_CUT, 
-    CMD_TURN_OFF_CUT
+    CMD_TURN_OFF_CUT,
+    CMD_COMMS_PING
 };
 
 const uint8_t HW_TURBINES_CMDS[] PROGMEM = {
     CMD_CALIBRATE_TURBINES,
     CMD_TURBINES_ON,
-    CMD_TURBINES_OFF
+    CMD_TURBINES_OFF,
+    CMD_COMMS_PING
 };
 
 

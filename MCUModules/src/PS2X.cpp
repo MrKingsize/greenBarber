@@ -29,11 +29,12 @@ PS2X ps2x; // create PS2 Controller Class
 
 /****************************** Functions *************************************/
 
-void controller_init(void)
+uint8_t controller_init(void)
 {
     TRACE_PRINTF("Entering Function\n");
     delay(300);  //added delay to give wireless ps2 module some time to startup, before configuring it
-  
+    
+    uint8_t controllerFoundFlag = 0;
     //setup pins and settings: GamePad(clock, command, attention, data, Pressures?, Rumble?) check for error
     error = ps2x.config_gamepad(PS2_CLK, PS2_CMD, PS2_SEL, PS2_DAT, pressures, rumble);
     
@@ -72,6 +73,7 @@ void controller_init(void)
         break;
     case 1:
         Serial.print("DualShock Controller found ");
+        controllerFoundFlag = 1;
         break;
     case 2:
         Serial.print("GuitarHero Controller found ");
@@ -80,6 +82,7 @@ void controller_init(void)
         Serial.print("Wireless Sony DualShock Controller found ");
         break;
     }
+    return controllerFoundFlag;
 }
 
 void get_controller_cmd(void)

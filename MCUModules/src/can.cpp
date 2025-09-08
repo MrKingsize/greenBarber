@@ -105,6 +105,8 @@ void my_can_send(uint8_t target_module_id, uint8_t cmd, uint16_t payload)
 
     memcpy(txMsg.Buffer, canMsg, sizeof(canMsg));
     isotp.send(&txMsg);
+    //DEBUG_PRINTF("Sent cmd %d to destination %d, payload %d\n", cmd, target_module_id, payload);
+    debug_counter_increase();
 }
 
 void enqueue_command(uint8_t sender, uint8_t cmd, uint16_t payload)
@@ -126,8 +128,6 @@ void enqueue_command(uint8_t sender, uint8_t cmd, uint16_t payload)
     //DEBUG_PRINTF("Enqueing cmd %d to destination %d\n", cmd, sender);
     //DEBUG_PRINTF("queueHead %d queueTail %d\n", queueHead, queueTail);
 
-
-    
 }
 
 bool dequeue_command(command_t *cmd)

@@ -8,9 +8,13 @@
 
 /****************************** Includes *************************************/
 #include <Arduino.h>
+#include "iso-tp.h"
 
 /****************************** Constants *************************************/
 #define CAN_ANGLE_OFFSET 100
+#define MAIN_LOOP_DELAY 50 // ms
+#define TOTAL_MAIN_LOOP_DELAY (MAIN_LOOP_DELAY + TIMEOUT_SESSION)// ms
+
 
 
 #define DEBUG_PRINTF(...)                     \
@@ -29,5 +33,7 @@
     snprintf(buf, sizeof(buf), __VA_ARGS__);      \
     Serial.print(buf);                            \
   } while (0)
+
+void debug_counter_increase(void);
 
 #endif

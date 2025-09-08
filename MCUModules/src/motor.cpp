@@ -155,7 +155,7 @@ static void pid_update(uint8_t motorIdx)
 		uint8_t holdFlag = pgm_read_byte(&motor_config[motorIdx].holdFlag);
 		if (holdFlag == 0)
 			disable_motor(motorIdx);
-		DEBUG_PRINTF("Motor %d stopped, tick error: %d\n", motorIdx, error);
+		DEBUG_PRINTF("Motor %u stopped, tick error: %ld\n", (unsigned)motorIdx, (long)error);
         return;
     }
 

@@ -3,7 +3,7 @@
 
 #include <mcp_can.h>
 
-//#define ISO_TP_DEBUG
+#define ISO_TP_DEBUG
 
 typedef enum {
   ISOTP_IDLE = 0,
@@ -33,13 +33,12 @@ typedef enum {
 #define ISOTP_FC_OVFLW  2 /* overflow */
 
 /* Timeout values */
-#define TIMEOUT_SESSION  500 /* Timeout between successfull send and receive */
-#define TIMEOUT_FC       250 /* Timeout between FF and FC or Block CF and FC */
-#define TIMEOUT_CF       250 /* Timeout between CFs                          */
+#define TIMEOUT_SESSION  500 /* Timeout between successfull send and receive - original value 500*/
+#define TIMEOUT_FC       250 /* Timeout between FF and FC or Block CF and FC - original value 250 */
+#define TIMEOUT_CF       250 /* Timeout between CFs                          - original value 250 */
 #define MAX_FCWAIT_FRAME  10
 
-#define MAX_MSGBUF 128    /* Received Message Buffer. Depends on uC ressources!
-                             Should be enough for our needs */
+#define MAX_MSGBUF 16    /* Received Message Buffer. Depends on uC ressources! Should be enough for our needs */
 struct Message_t
 {
   uint16_t len=0;

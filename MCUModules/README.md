@@ -113,3 +113,8 @@ The following do not Require SPI Communication. The are internally to the Jetson
 | add plant, remove plant, read plants | List of aromatics Positions in cm coordinates xy    |
 
 
+## Inter MCU modules monitoring system
+Every 1s the main module pings every module and keeps a counter to verify an AKN reply from each module
+Main module keeps a track of each module communication state
+When the state changes from not connected to connected it enables the commands to that module and sends initial needed commands such as calibration
+
