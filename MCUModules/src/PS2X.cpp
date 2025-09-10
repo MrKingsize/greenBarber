@@ -106,8 +106,10 @@ void get_controller_cmd(void)
             delay(150); 
             return;
         }
-        if(ps2x.Button(PSB_SELECT))
-            Serial.println("Select is being held");      
+        if(ps2x.Button(PSB_SELECT)){
+            Serial.println("Select is being held");
+            enqueue_command(MOD_SEL_MCU_MAIN, CMD_CALIBRATE_DIRECTION, 0);
+        }    
 
         
         //if(ps2x.ButtonPressed(PSB_PAD_UP))

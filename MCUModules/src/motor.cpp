@@ -352,14 +352,34 @@ static void motor_handler()
 								motorCtrl[motorIdx].pos++;
 							} else {
 								// Hit upper limit -> stop
+								int32_t error = (int32_t)motorCtrl[motorIdx].targetPos - (int32_t)motorCtrl[motorIdx].pos;
 								motorCtrl[motorIdx].motorRunFlag = 0;
+								motorCtrl[motorIdx].period = MAX_PERIOD_40US;
+								motorCtrl[motorIdx].pid_integral = 0;
+								motorCtrl[motorIdx].pid_prev_err = error;
+								DEBUG_PRINTF("Motor %u hit upper limit %lu -> stopped\n", (unsigned)motorIdx, (unsigned long)limit);
+								DEBUG_PRINTF("pos=%ld, targetPos=%ld\n", (long)motorCtrl[motorIdx].pos, (long)motorCtrl[motorIdx].targetPos);
+								uint8_t holdFlag = pgm_read_byte(&motor_config[motorIdx].holdFlag);
+								if (holdFlag == 0)
+									disable_motor(motorIdx);
+								DEBUG_PRINTF("Motor %u stopped, tick error: %ld\n", (unsigned)motorIdx, (long)error);
 							}
 						} else { // moving -
 							if (motorCtrl[motorIdx].pos > 0) {
 								motorCtrl[motorIdx].pos--;
 							} else {
 								// Hit lower (0) limit -> stop
+								int32_t error = (int32_t)motorCtrl[motorIdx].targetPos - (int32_t)motorCtrl[motorIdx].pos;
 								motorCtrl[motorIdx].motorRunFlag = 0;
+								motorCtrl[motorIdx].period = MAX_PERIOD_40US;
+								motorCtrl[motorIdx].pid_integral = 0;
+								motorCtrl[motorIdx].pid_prev_err = error;
+								DEBUG_PRINTF("Motor %u hit lower limit 0 -> stopped\n", (unsigned)motorIdx);
+								DEBUG_PRINTF("pos=%ld, targetPos=%ld\n", (long)motorCtrl[motorIdx].pos, (long)motorCtrl[motorIdx].targetPos);
+								uint8_t holdFlag = pgm_read_byte(&motor_config[motorIdx].holdFlag);
+								if (holdFlag == 0)
+									disable_motor(motorIdx);
+								DEBUG_PRINTF("Motor %u stopped, tick error: %ld\n", (unsigned)motorIdx, (long)error);
 							}
 						}
 					}

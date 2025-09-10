@@ -150,10 +150,10 @@ void loop()
 	{
 		set_mon_state(STATE_COMMS_NOT_CONNECTED);
 	}
-	if (myModuleIdx == MOD_SEL_HW_DIR_LEFT)
-	{
-		calibrateMotor(MOTOR_DIR_LEFT);
-	}
+	//if (myModuleIdx == MOD_SEL_HW_DIR_LEFT)
+	//{
+	//	calibrateMotor(MOTOR_DIR_LEFT);
+	//}
 
 	while(1)
 	{
@@ -205,23 +205,23 @@ static void mod_main_function()
 #endif
 
 	// check modules communication status
-	static uint8_t moduleConnectedBits, moduleConnectedBitsPrev = 0x00;
-	moduleConnectedBits = mon_ctrl();
-	if (moduleConnectedBits != moduleConnectedBitsPrev)
-	{
-		DEBUG_PRINTF("moduleConnectedBits changed: 0x%02X\n", moduleConnectedBits);
-		moduleConnectedBitsPrev = moduleConnectedBits;
-		if ((moduleConnectedBits & (1 << MOD_SEL_HW_DIR_RIGHT)))
-		{
-			DEBUG_PRINTF("Calibrating right motor\n");
-			my_can_send((uint8_t)MOD_SEL_HW_DIR_RIGHT, (uint8_t)CMD_CALIBRATE_DIR_RIGHT, 0);
-		}
-		if ((moduleConnectedBits & (1 << MOD_SEL_HW_DIR_LEFT)))
-		{
-			DEBUG_PRINTF("Calibrating left motor\n");
-			my_can_send((uint8_t)MOD_SEL_HW_DIR_LEFT, (uint8_t)CMD_CALIBRATE_DIR_LEFT, 0);
-		}
-	}
+//	static uint8_t moduleConnectedBits, moduleConnectedBitsPrev = 0x00;
+//	moduleConnectedBits = mon_ctrl();
+//	if (moduleConnectedBits != moduleConnectedBitsPrev)
+//	{
+//		DEBUG_PRINTF("moduleConnectedBits changed: 0x%02X\n", moduleConnectedBits);
+//		moduleConnectedBitsPrev = moduleConnectedBits;
+//		if ((moduleConnectedBits & (1 << MOD_SEL_HW_DIR_RIGHT)))
+//		{
+//			DEBUG_PRINTF("Calibrating right motor\n");
+//			my_can_send((uint8_t)MOD_SEL_HW_DIR_RIGHT, (uint8_t)CMD_CALIBRATE_DIR_RIGHT, 0);
+//		}
+//		if ((moduleConnectedBits & (1 << MOD_SEL_HW_DIR_LEFT)))
+//		{
+//			DEBUG_PRINTF("Calibrating left motor\n");
+//			my_can_send((uint8_t)MOD_SEL_HW_DIR_LEFT, (uint8_t)CMD_CALIBRATE_DIR_LEFT, 0);
+//		}
+//	}
 
 	// get command
 	command_t cmd;
@@ -281,11 +281,17 @@ static void mod_main_function()
 			motor_control(MOTOR_TRACTION_RIGHT, MOTOR_STOP_CMD, 0, PWM_MOTOR);
 
 		}
-		else if (cmd.cmd == CMD_COMMS_PING_ACK)
+		else if (cmd.cmd == CMD_CALIBRATE_DIRECTION)
 		{
-			DEBUG_PRINTF("PING_ACK received from module %d\n", cmd.payload);
-			set_mod_mon_state(STATE_COMMS_CONNECTED, cmd.payload);
+			DEBUG_PRINTF("Action: Calibrate direction!\n");
+			my_can_send((uint8_t)MOD_SEL_HW_DIR_RIGHT, (uint8_t)CMD_CALIBRATE_DIR_RIGHT, 0);
+			my_can_send((uint8_t)MOD_SEL_HW_DIR_LEFT, (uint8_t)CMD_CALIBRATE_DIR_LEFT, 0);
 		}
+//		else if (cmd.cmd == CMD_COMMS_PING_ACK)
+//		{
+//			DEBUG_PRINTF("PING_ACK received from module %d\n", cmd.payload);
+//			set_mod_mon_state(STATE_COMMS_CONNECTED, cmd.payload);
+//		}
 		delay(TIMEOUT_SESSION);
 	}
 	#endif
@@ -306,7 +312,7 @@ static void mod_dir_right_function()
 		{
 			if (getCalibratedFlag(MOTOR_DIR_RIGHT) == 0)
 			{
-				calibrateMotor(MOTOR_DIR_RIGHT);
+				return;
 			}
 			int16_t angleTarget = cmd.payload - CAN_ANGLE_OFFSET;
 			motorTickTarget = angleToTick(angleTarget, MOTOR_DIR_RIGHT);
@@ -341,7 +347,10 @@ static void mod_dir_left_function()
 		static uint32_t motorTickTarget = 0;
 		if (cmd.cmd == CMD_SET_DIR_ANGLE_LEFT)
 		{
-			
+			if (getCalibratedFlag(MOTOR_DIR_LEFT) == 0)
+			{
+				return;
+			}
 			int16_t angleTarget = cmd.payload - CAN_ANGLE_OFFSET;
 			motorTickTarget = angleToTick(angleTarget, MOTOR_DIR_LEFT);
 			DEBUG_PRINTF("Action: Direction target update! %d motorTick: %d\n", angleTarget, motorTickTarget);
@@ -356,7 +365,6 @@ static void mod_dir_left_function()
 			uint16_t id = get_my_module_id();
 			//DEBUG_PRINTF("PING received, replying, myid = %d\n",id);
 			set_mon_state(STATE_COMMS_CONNECTED);
-			delay(100);
 			//my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)id);
 			//ping_reply();
 		}
@@ -394,7 +402,7 @@ static void mod_x_traction_left_function()
 		{
 			DEBUG_PRINTF("PING received\n");
 			set_mon_state(STATE_COMMS_CONNECTED);
-			my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)get_my_module_id());
+			// my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)get_my_module_id());
 		}
 		delay(TIMEOUT_SESSION);
 	}
