@@ -6,6 +6,7 @@
 
 /****************************** Includes *************************************/
 #include <Arduino.h>
+#include "freertos/task.h" // Add this include for FreeRTOS tasks
 
 #include "motor.h"
 #include "module_map.h"
@@ -14,7 +15,7 @@
 /*************************** Global Variables ********************************/
 #define PWM_FREQ 20000 // 20 kHz, adjust as needed
 #define PWM_RESOLUTION 8 // 8 bits (0-255)
-#define MASTER_POWER_RELAY_PIN 17
+#define MASTER_POWER_RELAY_PIN 13
 
 motor_control_t motorCtrl[MOTOR_LAST] = {};
 uint8_t motorsList[MAX_MOTORS_PER_MODULE] = {};
@@ -23,9 +24,96 @@ uint8_t motorsListPWM[MAX_MOTORS_PER_MODULE] = {};
 uint8_t motorsCountPWM = 0;
 
 uint32_t countPrintMotor = 0; // Debug variables
+TaskHandle_t PIDTaskHandle = NULL; // Task handle for PID updates
+static portMUX_TYPE motor_mux = portMUX_INITIALIZER_UNLOCKED;
 
 /****************************** Functions *************************************/
 
+void motor_set_period(uint8_t motor, int period)
+{
+	portENTER_CRITICAL(&motor_mux);
+	motorCtrl[motor].period = period;
+	portEXIT_CRITICAL(&motor_mux);
+}
+int motor_get_period(uint8_t motor)
+{
+	int period = 0;
+	portENTER_CRITICAL(&motor_mux);
+	period = motorCtrl[motor].period;
+	portEXIT_CRITICAL(&motor_mux);
+	return period;
+}
+void motor_set_target_pos(uint8_t motor, uint32_t targetPos)
+{
+	portENTER_CRITICAL(&motor_mux);
+	motorCtrl[motor].targetPos = targetPos;
+	portEXIT_CRITICAL(&motor_mux);
+
+}
+uint32_t motor_get_target_pos(uint8_t motor)
+{
+	uint32_t targetPos = 0;
+	portENTER_CRITICAL(&motor_mux);
+	targetPos = motorCtrl[motor].targetPos;
+	portEXIT_CRITICAL(&motor_mux);
+	return targetPos;
+}
+void motor_set_pos(uint8_t motor, uint32_t pos)
+{
+	portENTER_CRITICAL(&motor_mux);
+	motorCtrl[motor].pos = pos;
+	portEXIT_CRITICAL(&motor_mux);
+}
+uint32_t motor_get_pos(uint8_t motor)
+{
+	uint32_t pos = 0;
+	portENTER_CRITICAL(&motor_mux);
+	pos = motorCtrl[motor].pos;
+	portEXIT_CRITICAL(&motor_mux);
+	return pos;
+}
+void motor_set_dir(uint8_t motor, uint8_t dir)
+{
+	portENTER_CRITICAL(&motor_mux);
+	motorCtrl[motor].dir = dir;
+	portEXIT_CRITICAL(&motor_mux);
+}
+uint8_t motor_get_dir(uint8_t motor)
+{
+	uint8_t dir = 0;
+	portENTER_CRITICAL(&motor_mux);
+	dir = motorCtrl[motor].dir;
+	portEXIT_CRITICAL(&motor_mux);
+	return dir;
+}
+void motor_set_motorRunFlag(uint8_t motor, uint8_t flag)
+{
+	portENTER_CRITICAL(&motor_mux);
+	motorCtrl[motor].motorRunFlag = flag;
+	portEXIT_CRITICAL(&motor_mux);
+}
+uint8_t motor_get_motorRunFlag(uint8_t motor)
+{
+	uint8_t flag = 0;
+	portENTER_CRITICAL(&motor_mux);
+	flag = motorCtrl[motor].motorRunFlag;
+	portEXIT_CRITICAL(&motor_mux);
+	return flag;
+}
+void motor_set_calibFlag(uint8_t motor, uint8_t flag)
+{
+	portENTER_CRITICAL(&motor_mux);
+	motorCtrl[motor].calibFlag = flag;
+	portEXIT_CRITICAL(&motor_mux);
+}
+uint8_t motor_get_calibFlag(uint8_t motor)
+{
+	uint8_t flag = 0;
+	portENTER_CRITICAL(&motor_mux);
+	flag = motorCtrl[motor].calibFlag;
+	portEXIT_CRITICAL(&motor_mux);
+	return flag;
+}
 
 /*******************************************************************************
  * @brief print of the motor control values
@@ -34,7 +122,7 @@ void printValuesMotor(uint8_t motor)
 {
 	if (motor < MOTOR_LAST)
 	{
-		DEBUG_PRINTF("MOTOR_ID: %d\tpos = %d\tdir = %d\tmotor_run = %d\n",(int)motor, (int)motorCtrl[motor].pos, motorCtrl[motor].dir, motorCtrl[motor].motorRunFlag);
+		DEBUG_PRINTF("MOTOR_ID: %d\tpos = %d\tdir = %d\tmotor_run = %d\n",(int)motor, (int)motor_get_pos(motor), motor_get_dir(motor), motor_get_motorRunFlag(motor));
 	}
 }
 
@@ -42,7 +130,7 @@ void printValuesPid(uint8_t motor)
 {
 	if (motor < MOTOR_LAST)
 	{
-		DEBUG_PRINTF("period: %d\tpid_prev_err = %d\tpid_integral = %d\n",(int)motorCtrl[motor].period, (int)motorCtrl[motor].pid_prev_err, motorCtrl[motor].pid_integral);
+		DEBUG_PRINTF("period: %d\tpid_prev_err = %d\tpid_integral = %d\n",(int)motor_get_period(motor), (int)motorCtrl[motor].pid_prev_err, motorCtrl[motor].pid_integral);
 	}
 }
 
@@ -53,8 +141,7 @@ void enable_motor(uint8_t motor)
 {
 	if (motor < MOTOR_LAST)
 	{
-	digitalWrite(motor_config[motor].en_pin, LOW);
-		//TRACE_PRINTF("Motor %d enabled, pin %d, value %d\n", motor, pgm_read_byte(&motor_config[motor].en_pin), LOW);
+		digitalWrite(motor_config[motor].en_pin, LOW);
 	} 
 }
 
@@ -143,16 +230,16 @@ static void pid_update(uint8_t motorIdx)
     int32_t Ki = ((int32_t)ki_raw) << PID_SHIFT;
     int32_t Kd = ((int32_t)kd_raw) << PID_SHIFT;
 
-    int32_t error = (int32_t)motorCtrl[motorIdx].targetPos - (int32_t)motorCtrl[motorIdx].pos;
+    int32_t error = (int32_t)motor_get_target_pos(motorIdx) - (int32_t)motor_get_pos(motorIdx);
     int32_t abs_err = (error >= 0) ? error : -error;
 
     // Deadband stop
     if (abs_err <= POS_DEADBAND) {
-        motorCtrl[motorIdx].motorRunFlag = 0;
-        motorCtrl[motorIdx].period = MAX_PERIOD_40US;
+		motor_set_motorRunFlag(motorIdx, 0);
+		motor_set_period(motorIdx, MAX_PERIOD_40US);
         motorCtrl[motorIdx].pid_integral = 0;
         motorCtrl[motorIdx].pid_prev_err = error;
-	uint8_t holdFlag = motor_config[motorIdx].holdFlag;
+		uint8_t holdFlag = motor_config[motorIdx].holdFlag;
 		if (holdFlag == 0)
 			disable_motor(motorIdx);
 			DEBUG_PRINTF("Motor %u stopped, tick error: %ld\n", (unsigned)motorIdx, (long)error);
@@ -160,7 +247,7 @@ static void pid_update(uint8_t motorIdx)
     }
 
     // Direction
-    motorCtrl[motorIdx].dir = (error > 0) ? 1 : 0;
+	motor_set_dir(motorIdx, (error > 0) ? 1 : 0);
 
     // Feed-forward base speed
     int32_t ff_speed = ff_error_to_speed(abs_err);
@@ -198,22 +285,115 @@ static void pid_update(uint8_t motorIdx)
 
     // To period
     uint16_t period = speed_to_period_40us(speed_cmd, motorIdx);
-    motorCtrl[motorIdx].period = period;
+	motor_set_period(motorIdx, period);
+}
+
+/*******************************************************************************
+ * @brief FreeRTOS Task to handle PID updates and debugging prints
+ *******************************************************************************/
+void pid_task(void *pvParameters) {
+    // Determine the task period based on PID_UPDATE_TICKS and the ISR period (P_BASE)
+    // Assuming ISR runs every 40us (P_BASE=40) and PID_UPDATE_TICKS is 25 (25 * 40us = 1ms)
+    // We want the task to run every 1ms (1000us)
+    const TickType_t xPeriodTicks = pdMS_TO_TICKS(1); // 1 millisecond period
+    TickType_t xLastWakeTime;
+
+    xLastWakeTime = xTaskGetTickCount();
+
+    for (;;) {
+        // Wait for the next cycle
+        vTaskDelayUntil(&xLastWakeTime, xPeriodTicks);
+
+        // --- PID Update Logic ---
+        uint8_t motorIdx;
+        for (uint8_t motorIdxModule = 0; motorIdxModule < motorsCount; motorIdxModule++)
+		{
+            motorIdx = motorsList[motorIdxModule];
+
+			if (motor_get_motorRunFlag(motorIdx) == 1 && motor_get_calibFlag(motorIdx) == 1)
+			{
+                pid_update(motorIdx);
+            }
+        }
+
+        // Debug Printing Logic (Slower)
+#ifdef MOTORDEBUG
+        // Re-implement your debug timing here using system ticks or counters
+        static uint32_t taskCounter = 0;
+        taskCounter++;
+
+        // Print PID values every 100ms (100 cycles)
+        if (taskCounter % 100 == 0) {
+            for (uint8_t motorIdxModule = 0; motorIdxModule < motorsCount; motorIdxModule++) 
+			{
+                uint8_t motorIdx = motorsList[motorIdxModule];
+				if (motor_get_motorRunFlag(motorIdx) == 1)
+				{
+                    printValuesPid(motorIdx);
+                }
+            }
+        }
+
+        // Print Motor values every 1000ms (1000 cycles)
+        if (taskCounter % 1000 == 0) {
+            for (uint8_t motorIdxModule = 0; motorIdxModule < motorsCount; motorIdxModule++)
+			{
+                uint8_t motorIdx = motorsList[motorIdxModule];
+                if (motor_get_motorRunFlag(motorIdx) == 1)
+				{
+                    printValuesMotor(motorIdx);
+                }
+            }
+        }
+#endif
+    }
 }
 
 /*******************************************************************************
  * @brief Initializes the motors
  *******************************************************************************/
-void goto_pos(MOTOR_ENUM motor, uint32_t targetPos)
+void goto_pos(MOTOR_ENUM motor, uint32_t targetPos, uint32_t modeSpeed)
 {
-	enable_motor(motor);
-	motorCtrl[motor].targetPos = targetPos;
-	motorCtrl[motor].motorRunFlag = 1;
+	if (modeSpeed == 0) // non-blocking and absolute
+	{
+		portENTER_CRITICAL(&motor_mux);
+		enable_motor(motor);
+		motorCtrl[motor].targetPos = targetPos;
+		motorCtrl[motor].motorRunFlag = 1;
+		portEXIT_CRITICAL(&motor_mux);
+		return;
+	}
+	else // blocking and absolute - debug case
+	{
+		enable_motor(motor);
+		motor_set_calibFlag(motor, 0);
+		motor_set_motorRunFlag(motor, 1);
+
+		if (targetPos > motor_get_pos(motor))
+		{
+			motor_control(motor, MOTOR_PLUS_CMD, modeSpeed, STEPPER_MOTOR);
+			while (motor_get_pos(motor) < targetPos)
+			{
+				usleep(40);
+			}
+		}
+		else
+		{
+			motor_control(motor, MOTOR_MINUS_CMD, modeSpeed, STEPPER_MOTOR);
+			while (motor_get_pos(motor) > targetPos)
+			{
+				usleep(40);
+			}
+		}
+		disable_motor(motor);
+		motor_set_motorRunFlag(motor, 0);
+
+	}
 }
 
 uint8_t getCalibratedFlag(MOTOR_ENUM motor)
 {
-	return motorCtrl[motor].calibFlag;
+	return motor_get_calibFlag(motor);
 }
 
 /******************************************************************************
@@ -223,16 +403,18 @@ void calibrateMotor(MOTOR_ENUM motor)
 {
 	TRACE_PRINTF("Calibrating Motor %d\n", motor);
 	uint8_t calibPin = motor_config[motor].calib_pin;
+	motor_set_calibFlag(motor, 0);
+	if (digitalRead(calibPin) != 0)
+		motor_control(motor, MOTOR_MINUS_CMD, motor_config[motor].defaultSpeedBackwards, STEPPER_MOTOR);
 	while(digitalRead(calibPin) == 1){
-	motor_control(motor, MOTOR_MINUS_CMD, motor_config[motor].defaultSpeedBackwards, STEPPER_MOTOR);
 		delay(1);
 	}
-	//motor_control(motor, MOTOR_STOP_CMD, motor_config[motor].defaultSpeedBackwards, STEPPER_MOTOR);
+	motor_control(motor, MOTOR_STOP_CMD, motor_config[motor].defaultSpeedBackwards, STEPPER_MOTOR);
 	TRACE_PRINTF("Zero reseted!\n");
-	motorCtrl[motor].calibFlag = 1;
-	motorCtrl[motor].pos = 0;
-	//goto_pos(motor, 2000);
-	//motor_control(motor, MOTOR_STOP_CMD, pgm_read_byte(&motor_config[motor].defaultSpeedBackwards), STEPPER_MOTOR);
+	motor_set_calibFlag(motor, 1);
+	motor_set_pos(motor, 0);
+	goto_pos(motor, 1000, 0);
+	motor_control(motor, MOTOR_STOP_CMD, pgm_read_byte(&motor_config[motor].defaultSpeedBackwards), STEPPER_MOTOR);
 }
 
 /******************************************************************************
@@ -253,13 +435,12 @@ void motor_control(MOTOR_ENUM motor, MOTOR_CONTROL cmd, uint32_t period, MOTOR_T
 		if (motorCtrl[motor].cmdAnterior == cmd)
 		return;
 
-		int period = (period * 1023) / 255;
-
+		portENTER_CRITICAL(&motor_mux);
 		switch(cmd)
 		{
 			case MOTOR_STOP_CMD:
 				motorCtrl[motor].motorRunFlag = 0;
-				disable_motor(motor);   
+				disable_motor(motor);
 				break;
 			case MOTOR_PLUS_CMD:
 				motorCtrl[motor].motorRunFlag = 1;
@@ -274,11 +455,13 @@ void motor_control(MOTOR_ENUM motor, MOTOR_CONTROL cmd, uint32_t period, MOTOR_T
 				motorCtrl[motor].period = period;   
 				break;
 		}
+		portEXIT_CRITICAL(&motor_mux);
 		motorCtrl[motor].cmdAnterior = cmd;
 	}
 	else // PWM Motor
 	{
-		uint8_t motorIdx = motor;
+		period = (period * 1023) / 255;
+		DEBUG_PRINTF("PWM Motor %d cmd: %d period: %d\n", motor, cmd, period);
 		
 		switch(cmd)
 		{
@@ -289,55 +472,46 @@ void motor_control(MOTOR_ENUM motor, MOTOR_CONTROL cmd, uint32_t period, MOTOR_T
 			case MOTOR_PLUS_CMD:
 				ledcWrite(0, period);
 				ledcWrite(1, 0);
-				digitalWrite(motor_config[motorIdx].en_pin, HIGH);
+				digitalWrite(motor_config[motor].en_pin, HIGH);
 				break;
 			case MOTOR_MINUS_CMD:
 				ledcWrite(0, 0);
 				ledcWrite(1, period);
-				digitalWrite(motor_config[motorIdx].en_pin, HIGH);
+				digitalWrite(motor_config[motor].en_pin, HIGH);
 				break;
 		}
 	}
 }
 
 /******************************************************************************
- * @brief Motor control handler
+ * @brief Motor control handler (ISR)
  ******************************************************************************/
-static void motor_handler()
+static void IRAM_ATTR motor_handler() // Add IRAM_ATTR for faster ISR execution
 {
-#ifdef MOTORDEBUG
-	static uint32_t handlerCount = 0;
-    static uint32_t nextPidPrint    = DEBUGCOUNTER_PID;  // 100 ms
-    static uint32_t nextMotorPrint  = DEBUGCOUNTER;      // 1000 ms
+    uint8_t motorIdx;
+    for (uint8_t motorIdxModule = 0; motorIdxModule < motorsCount; motorIdxModule++)
+    {
+        motorIdx = motorsList[motorIdxModule];
 
-#endif
-	uint8_t motorIdx;
-	for (uint8_t motorIdxModule = 0; motorIdxModule < motorsCount; motorIdxModule++)
-	{
-
-		motorIdx = motorsList[motorIdxModule];
-
-		if (motorCtrl[motorIdx].motorRunFlag == 1)
-		{
-			// --- PID update every 1ms ---
-			if ((++motorCtrl[motorIdx].pid_counter >= PID_UPDATE_TICKS) && (motorCtrl[motorIdx].calibFlag == 1)) {
-				motorCtrl[motorIdx].pid_counter = 0;
-				pid_update(motorIdx);
-			}
-
-			// --- Stepping logic each ISR tick ---
-			if (++motorCtrl[motorIdx].counterHandler >= motorCtrl[motorIdx].period)
-			{
-				motorCtrl[motorIdx].counterHandler = 0;
-
-				// Set direction pin
-				if (motorCtrl[motorIdx].dir == motor_config[motorIdx].orientation)
-					digitalWrite(motor_config[motorIdx].dir_or_rpwm_pin, LOW);
-				else
-					digitalWrite(motor_config[motorIdx].dir_or_rpwm_pin, HIGH);
-				
-				// process motor pulses
-				if (motorCtrl[motorIdx].toggle) {
+        if (motorCtrl[motorIdx].motorRunFlag == 1)
+        {
+            // --- PID update logic removed (Now in pid_task) ---
+            // motorCtrl[motorIdx].pid_counter increments, but is not reset here!
+            // We can remove this counter completely since the PID update is now in the task.
+            
+            // --- Stepping logic each ISR tick ---
+            if (++motorCtrl[motorIdx].counterHandler >= motorCtrl[motorIdx].period)
+            {
+                motorCtrl[motorIdx].counterHandler = 0;
+                
+                // Set direction pin
+                if (motorCtrl[motorIdx].dir == motor_config[motorIdx].orientation)
+                    digitalWrite(motor_config[motorIdx].dir_or_rpwm_pin, LOW);
+                else
+                    digitalWrite(motor_config[motorIdx].dir_or_rpwm_pin, HIGH);
+                
+                // process motor pulses (all the logic below remains the same)
+                if (motorCtrl[motorIdx].toggle) {
 					// Rising edge: actually step (if allowed)
 					motorCtrl[motorIdx].toggle = 0;
 					digitalWrite(motor_config[motorIdx].pul_or_lpwm_pin, HIGH);
@@ -359,12 +533,9 @@ static void motor_handler()
 								motorCtrl[motorIdx].period = MAX_PERIOD_40US;
 								motorCtrl[motorIdx].pid_integral = 0;
 								motorCtrl[motorIdx].pid_prev_err = error;
-								DEBUG_PRINTF("Motor %u hit upper limit %lu -> stopped\n", (unsigned)motorIdx, (unsigned long)limit);
-								DEBUG_PRINTF("pos=%ld, targetPos=%ld\n", (long)motorCtrl[motorIdx].pos, (long)motorCtrl[motorIdx].targetPos);
 								uint8_t holdFlag = motor_config[motorIdx].holdFlag;
 								if (holdFlag == 0)
 									disable_motor(motorIdx);
-								DEBUG_PRINTF("Motor %u stopped, tick error: %ld\n", (unsigned)motorIdx, (long)error);
 							}
 						} else { // moving -
 							if (motorCtrl[motorIdx].pos > 0) {
@@ -376,63 +547,23 @@ static void motor_handler()
 								motorCtrl[motorIdx].period = MAX_PERIOD_40US;
 								motorCtrl[motorIdx].pid_integral = 0;
 								motorCtrl[motorIdx].pid_prev_err = error;
-								DEBUG_PRINTF("Motor %u hit lower limit 0 -> stopped\n", (unsigned)motorIdx);
-								DEBUG_PRINTF("pos=%ld, targetPos=%ld\n", (long)motorCtrl[motorIdx].pos, (long)motorCtrl[motorIdx].targetPos);
 								uint8_t holdFlag = motor_config[motorIdx].holdFlag;
 								if (holdFlag == 0)
 									disable_motor(motorIdx);
-								DEBUG_PRINTF("Motor %u stopped, tick error: %ld\n", (unsigned)motorIdx, (long)error);
 							}
 						}
 					}
 
 				}
-				else
-				{
-					motorCtrl[motorIdx].toggle = 1;
-					digitalWrite(motor_config[motorIdx].pul_or_lpwm_pin,LOW);
-				}
-				
-			}
-		}
-	}
-
-
-#ifdef MOTORDEBUG
-
-		// ---- Now do the timing logic ONCE per ISR, not per motor ----
-    handlerCount++;
-
-    // Print every 100 ms
-    if (handlerCount >= nextPidPrint) {
-        for (uint8_t motorIdxModule = 0; motorIdxModule < motorsCount; motorIdxModule++) {
-            uint8_t motorIdx = motorsList[motorIdxModule];
-            if (motorCtrl[motorIdx].motorRunFlag) {
-                printValuesPid(motorIdx);
+                else
+                {
+                    motorCtrl[motorIdx].toggle = 1;
+                    digitalWrite(motor_config[motorIdx].pul_or_lpwm_pin,LOW);
+                }
             }
         }
-        nextPidPrint += DEBUGCOUNTER_PID;
     }
-
-    // Print every 1000 ms
-    if (handlerCount >= nextMotorPrint) {
-        for (uint8_t motorIdxModule = 0; motorIdxModule < motorsCount; motorIdxModule++) {
-            uint8_t motorIdx = motorsList[motorIdxModule];
-            if (motorCtrl[motorIdx].motorRunFlag) {
-                printValuesMotor(motorIdx);
-            }
-        }
-        nextMotorPrint += DEBUGCOUNTER;
-    }
-
-	// Optional: prevent overflow drift
-    if (handlerCount >= DEBUGCOUNTER * 100UL) { // e.g. every 100s
-        handlerCount   = 0;
-        nextPidPrint   = DEBUGCOUNTER_PID;
-        nextMotorPrint = DEBUGCOUNTER;
-    }
-		
-#endif
+    
 }
 
 /******************************************************************************
@@ -485,8 +616,7 @@ void motors_init(void){
 
 	if (myID != MOD_SEL_MCU_MAIN)
 	{
-		// ESP32: Use hardware timer API
-		// Example: Use timerBegin, timerAttachInterrupt, timerAlarmWrite, timerAlarmEnable
+		// Start the hardware timer for pulse generation
 		static hw_timer_t *motorTimer = NULL;
 		if (!motorTimer) {
 			motorTimer = timerBegin(0, 80, true); // timer 0, prescaler 80 (1us tick), count up
@@ -494,7 +624,21 @@ void motors_init(void){
 			timerAlarmWrite(motorTimer, P_BASE, true); // P_BASE * 40us period
 			timerAlarmEnable(motorTimer);
 		}
+
+		// Create the FreeRTOS Task for PID/Debug
+		// PID calculations need to run periodically, but not with hard real-time constraints
+		xTaskCreate(
+			pid_task,             // Function that implements the task.
+			"PID_Handler",        // Text name for the task.
+			4096,                 // Stack size in words (adjust as needed).
+			NULL,                 // Parameter passed into the task.
+			5,                    // Task priority (higher than main loop, lower than ISR).
+			&PIDTaskHandle        // Task handle.
+		);
 	}
+
+	
+
 
 	// Fill motorsList
 	get_motors_list(motorsList,	&motorsCount, motorsListPWM, &motorsCountPWM);

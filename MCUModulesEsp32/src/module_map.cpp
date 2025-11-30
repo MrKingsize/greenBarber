@@ -31,7 +31,15 @@ void init_my_module_id(uint8_t id)
         set_my_module_id(id);
     }
     myModuleIdx = EEPROM.read(0);  // Assuming ID is at address 0
-    DEBUG_PRINTF("My Module: %d\n", myModuleIdx);
+    DEBUG_PRINTF("My Module: %d, %s\n", myModuleIdx \
+        , (myModuleIdx == MOD_SEL_MCU_MAIN) ? "MCU_MAIN" : \
+          (myModuleIdx == MOD_SEL_HW_DIR_RIGHT) ? "HW_DIR_RIGHT" : \
+          (myModuleIdx == MOD_SEL_HW_DIR_LEFT) ? "HW_DIR_LEFT" : \
+          (myModuleIdx == MOD_SEL_HW_X_TRACTION_LEFT) ? "HW_X_TRACTION_LEFT" : \
+          (myModuleIdx == MOD_SEL_HW_Y) ? "HW_Y" : \
+          (myModuleIdx == MOD_SEL_HW_Z) ? "HW_Z" : \
+          (myModuleIdx == MOD_SEL_HW_CUT) ? "HW_CUT" : \
+          (myModuleIdx == MOD_SEL_HW_TURBINES) ? "HW_TURBINES" : "UNKNOWN");
     if (myModuleIdx == 0xFF || myModuleIdx == 0 || myModuleIdx > MODULE_NUM) {
         TRACE_PRINTF("Invalid ID read from EEPROM: %u\n", myModuleIdx);
         myModuleIdx = DEFAULT_MODULE_ID;

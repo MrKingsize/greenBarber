@@ -11,6 +11,34 @@
 
 /****************************** Constants *************************************/
 
+/*
+Driver TB6600 switch configuration table
+
+For a compromisse with high torque and smooth operation we choose: 800 pulses/rev
+Microstep	| Pulse/ver |	S1	|	S2	|	S3
+-----------------------------------------------
+	NC		|	NC		|	ON	|	ON	|	ON
+	1		|	200		|	ON	|	ON	|	OFF
+	2/A		|	400		|	ON	|	OFF	|	ON
+	2/B		|	400		|	OFF	|	ON	|	ON
+	4		|	800		|	ON	|	OFF	|	OFF
+	8		|	1600	|	OFF	|	ON	|	OFF
+	16		|	3200	|	OFF	|	OFF	|	ON
+	32		|	6400	|	OFF	|	OFF	|	OFF
+				
+// Based on motor rated at 1.68A, choosing the safest setting: 1.5A RMS. for 17HS19 (nema 17)
+Crrent(A)	| PKCurrent |	S4	|	S5	|	S6
+-----------------------------------------------
+	0,5		|	0,7		|	ON	|	ON	|	ON
+	1		|	1,2		|	ON	|	OFF	|	ON
+	1,5		|	1,7		|	ON	|	ON	|	OFF
+	2		|	2,2		|	ON	|	OFF	|	OFF
+	2,5		|	2,7		|	OFF	|	ON	|	ON
+	2,8		|	2,9		|	OFF	|	OFF	|	ON
+	3		|	3,2		|	OFF	|	ON	|	OFF
+	3,5		|	4		|	OFF	|	OFF	|	OFF
+*/
+
 // debug
 #define MOTORDEBUG
 #define DEBUGCOUNTER (1000000 / P_BASE)
@@ -25,7 +53,7 @@
 #define EXTERNAL_WHEEL_FACTOR 1.0768
 
 
-#define PID_UPDATE_TICKS     25          // 25 * 40us = 1ms
+#define PID_UPDATE_TICKS     25          // 25 * 40us = 1ms (not used)
 #define POS_DEADBAND         5
 
 #define PID_SHIFT            8
@@ -41,7 +69,7 @@
 #define FF_SPEED_MAX         10000
 
 // Period limits, in ISR ticks (40us units)
-#define MIN_PERIOD_40US      1           // fastest
+#define MIN_PERIOD_40US      100           // fastest (not used)
 #define MAX_PERIOD_40US      2000        // slowest
 
 
@@ -140,17 +168,18 @@ struct motor_config_t
 /**********************************************************************
  * store fixed parameters in flash ()
  * Note: parameter motorIdx has to allways be by order and continuously according to MOTOR_ENUM
- * parameters access information, use:
- * uint8_t -> pgm_read_byte(&motor_config[0].dir_pin)
- * uint16_t -> pgm_read_word()
- * uint32_t -> pgm_read_dword()
+ * GPIO5:
+ * Strapping pin → at boot it decides SDIO slave timing together with MTDO.
+ * Has an internal pull-up by default.
+ * If you pull it low during reset, it may affect boot.
+ * After boot, it’s a normal digital I/O (safe for GPIO, PWM, etc.).
  * ********************************************************************/
 const struct motor_config_t motor_config[] =
 {//{motorType,limit,defaultSpeedForward,defaultSpeedBackwards,motorIdx,dir_pin/rpwm_pin,pul_pin/lpwm_pin,en_pin,calib_pin,relay_pin,orientation,PID_P,PID_I,PID_D,Holdflag}
-	{STEPPER_MOTOR,	6700,	1,			3,					MOTOR_DIR_RIGHT,		15,			0,			4,		16,		17,			0,		100,	1,	0,		1},
-	{STEPPER_MOTOR,	6700,	1,			3,					MOTOR_DIR_LEFT,			15,			0,			4,		16,		17,			0,		100,	1,	0,		1},
-	{PWM_MOTOR,		0,		200,		200,				MOTOR_TRACTION_RIGHT,	15,			0,			4,		16,		17,			0,		0,		0,	0,		1},
-	{PWM_MOTOR,		0,		200,		200,				MOTOR_TRACTION_LEFT,	15,			0,			4,		16,		17,			0,		0,		0,	0,		1},
+	{STEPPER_MOTOR,	4000,	15,		125,					MOTOR_DIR_RIGHT,		15,			5,			4,		19,		18,			0,		100,	1,	0,		1},
+	{STEPPER_MOTOR,	2000,	40,		125,					MOTOR_DIR_LEFT,			15,			5,			4,		19,		18,			0,		100,	1,	0,		1},
+	{PWM_MOTOR,		0,		200,		200,				MOTOR_TRACTION_RIGHT,	15,			5,			4,		19,		18,			0,		0,		0,	0,		1},
+	{PWM_MOTOR,		0,		200,		200,				MOTOR_TRACTION_LEFT,	15,			13,			4,		19,		18,			0,		0,		0,	0,		1},
 	{STEPPER_PID,	6700,	3,			3,					MOTOR_X,				4,			3,			5,		0,		0,			0,		0,		0,	0,		1},};
 
 
@@ -182,9 +211,10 @@ void motor_control(MOTOR_ENUM motor, MOTOR_CONTROL cmd, uint32_t period, MOTOR_T
 void disable_motor(uint8_t motor);
 void enable_motor(uint8_t motor);
 void calibrateMotor(MOTOR_ENUM motor);
-void goto_pos(MOTOR_ENUM motor, uint32_t targetPos);
+void goto_pos(MOTOR_ENUM motor, uint32_t targetPos, uint32_t modeSpeed);
 uint32_t angleToTick(int16_t angle, uint8_t motorID);
 void readMotorState(uint8_t motorID, uint8_t *runFlagCheck);
 uint8_t getCalibratedFlag(MOTOR_ENUM motor);
+uint32_t motor_get_pos(uint8_t motor);
 
 #endif

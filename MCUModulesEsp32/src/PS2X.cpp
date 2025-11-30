@@ -168,23 +168,21 @@ void get_controller_cmd(void)
 
     
     }
-    if (ps2x.Button(PSB_PAD_UP))
+    if (ps2x.ButtonReleased(PSB_PAD_LEFT))
     {
-        forwardSpeed = ps2x.Analog(PSS_RY); // down -> 255, up -> 0
-        if (abs(forwardSpeedAnt - forwardSpeed) > 10)
-        {
-            forwardSpeedAnt = forwardSpeed;
-            enqueue_command(MOD_SEL_MCU_MAIN, CMD_MOVE_FORWARD, forwardSpeed);
-        }
+        //enqueue_command(MOD_SEL_MCU_MAIN, CMD_MOVE_LEFT, 1000);
     }
-    if (ps2x.Button(PSB_PAD_DOWN))
+    if (ps2x.ButtonReleased(PSB_PAD_RIGHT))
     {
-        forwardSpeed = ps2x.Analog(PSS_RY); // down -> 255, up -> 0
-        if (abs(forwardSpeedAnt - forwardSpeed) > 10)
-        {
-            forwardSpeedAnt = forwardSpeed;
-            enqueue_command(MOD_SEL_MCU_MAIN, CMD_MOVE_BACKWARDS, forwardSpeed);
-        }
+        //enqueue_command(MOD_SEL_MCU_MAIN, CMD_MOVE_RIGHT, 1000);
+    }
+    if (ps2x.ButtonReleased(PSB_PAD_UP))
+    {
+        //enqueue_command(MOD_SEL_MCU_MAIN, CMD_INCREASE_SPEED, 10);
+    }
+    if (ps2x.ButtonReleased(PSB_PAD_DOWN))
+    {
+        //enqueue_command(MOD_SEL_MCU_MAIN, CMD_DECREASE_SPEED, 10);
     }
     if (ps2x.Button(PSB_L1))
     {

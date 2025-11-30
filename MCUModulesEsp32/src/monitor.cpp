@@ -12,7 +12,6 @@
 #include "can.h"
 
 /*************************** Global Variables ********************************/
-#ifdef MODULE_ID_MOD_SEL_MCU_MAIN
 struct modulestate_t moduleState[MODULE_NUM] = {0};
 
 /****************************** Functions *************************************/
@@ -57,14 +56,13 @@ uint8_t mon_ctrl(void)
 
     if (loopCounter * TOTAL_MAIN_LOOP_DELAY >= PING_INTERVAL_MS)
     {
-        DEBUG_PRINTF("Pinging modules\n");
+        //DEBUG_PRINTF("Pinging modules\n");
         moduleConnectedBits = 0x00;
         loopCounter = 0;
-        //my_can_send((uint8_t)3, (uint8_t)CMD_COMMS_PING, 0); // Ping the MCU_BMS first as it is critical
         for (uint8_t i = 2; i < MODULE_NUM; i++)
         {
            
-            //my_can_send((uint8_t)i, (uint8_t)CMD_COMMS_PING, 0);
+            my_can_send((uint8_t)i, (uint8_t)CMD_COMMS_PING, 0);
             if (moduleState[i].moduleState == STATE_COMMS_CONNECTED)
             {
                 moduleConnectedBits |= (1 << i);
@@ -104,4 +102,3 @@ uint8_t mon_ctrl(void)
     loopCounter++;
     return moduleConnectedBits;
 }
-#endif

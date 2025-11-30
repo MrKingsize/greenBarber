@@ -15,6 +15,7 @@
  *
  */ 
 #include <Arduino.h>
+//#include <HardwareSerial.h>
 
 #include "motor.h"
 #include "can.h"
@@ -27,11 +28,10 @@
 /*******************************************************************
  * Global Constants
  ******************************************************************/
-#define TIMEOUT_SESSION 50
+
 /*******************************************************************
  * Global Variables
  ******************************************************************/ 
-
 unsigned long previousMillis = 0;
 const long interval = 1000; // Send/check every 1 second
 
@@ -67,6 +67,7 @@ void debug_setup()
  ******************************************************************************/
 void setup() {
 	Serial.begin(9600);
+	//MySerial.begin(9600, SERIAL_8N1, 16, 17);
 	unsigned long startTime = millis();
 	while (!Serial && (millis() - startTime < 5000));
 	
@@ -210,23 +211,23 @@ static void mod_main_function()
 #endif
 
 	// check modules communication status
-//	static uint8_t moduleConnectedBits, moduleConnectedBitsPrev = 0x00;
-//	moduleConnectedBits = mon_ctrl();
-//	if (moduleConnectedBits != moduleConnectedBitsPrev)
-//	{
-//		DEBUG_PRINTF("moduleConnectedBits changed: 0x%02X\n", moduleConnectedBits);
-//		moduleConnectedBitsPrev = moduleConnectedBits;
-//		if ((moduleConnectedBits & (1 << MOD_SEL_HW_DIR_RIGHT)))
-//		{
-//			DEBUG_PRINTF("Calibrating right motor\n");
-//			my_can_send((uint8_t)MOD_SEL_HW_DIR_RIGHT, (uint8_t)CMD_CALIBRATE_DIR_RIGHT, 0);
-//		}
-//		if ((moduleConnectedBits & (1 << MOD_SEL_HW_DIR_LEFT)))
-//		{
-//			DEBUG_PRINTF("Calibrating left motor\n");
-//			my_can_send((uint8_t)MOD_SEL_HW_DIR_LEFT, (uint8_t)CMD_CALIBRATE_DIR_LEFT, 0);
-//		}
-//	}
+	static uint8_t moduleConnectedBits, moduleConnectedBitsPrev = 0x00;
+	moduleConnectedBits = mon_ctrl();
+	if (moduleConnectedBits != moduleConnectedBitsPrev)
+	{
+		DEBUG_PRINTF("moduleConnectedBits changed: 0x%02X\n", moduleConnectedBits);
+		moduleConnectedBitsPrev = moduleConnectedBits;
+		if ((moduleConnectedBits & (1 << MOD_SEL_HW_DIR_RIGHT)))
+		{
+			//DEBUG_PRINTF("Calibrating right motor\n");
+			//my_can_send((uint8_t)MOD_SEL_HW_DIR_RIGHT, (uint8_t)CMD_CALIBRATE_DIR_RIGHT, 0);
+		}
+		if ((moduleConnectedBits & (1 << MOD_SEL_HW_DIR_LEFT)))
+		{
+			//DEBUG_PRINTF("Calibrating left motor\n");
+			//my_can_send((uint8_t)MOD_SEL_HW_DIR_LEFT, (uint8_t)CMD_CALIBRATE_DIR_LEFT, 0);
+		}
+	}
 
 	// get command
 	command_t cmd;
@@ -292,12 +293,33 @@ static void mod_main_function()
 			my_can_send((uint8_t)MOD_SEL_HW_DIR_RIGHT, (uint8_t)CMD_CALIBRATE_DIR_RIGHT, 0);
 			my_can_send((uint8_t)MOD_SEL_HW_DIR_LEFT, (uint8_t)CMD_CALIBRATE_DIR_LEFT, 0);
 		}
-//		else if (cmd.cmd == CMD_COMMS_PING_ACK)
-//		{
-//			DEBUG_PRINTF("PING_ACK received from module %d\n", cmd.payload);
-//			set_mod_mon_state(STATE_COMMS_CONNECTED, cmd.payload);
-//		}
-		delay(TIMEOUT_SESSION);
+		else if (cmd.cmd == CMD_COMMS_PING_ACK)
+		{
+			//DEBUG_PRINTF("PING_ACK received from module %d\n", cmd.payload);
+			set_mod_mon_state(STATE_COMMS_CONNECTED, cmd.payload);
+		}
+		
+		// debug commands
+		else if (cmd.cmd == CMD_INCREASE_SPEED)
+		{
+			DEBUG_PRINTF("Action: Increase speed!\n");
+			my_can_send(MOD_SEL_HW_DIR_RIGHT, CMD_INCREASE_SPEED, cmd.payload);
+		}
+		else if (cmd.cmd == CMD_DECREASE_SPEED)
+		{
+			DEBUG_PRINTF("Action: Decrease speed!\n");
+			my_can_send(MOD_SEL_HW_DIR_RIGHT, CMD_DECREASE_SPEED, cmd.payload);
+		}
+		else if (cmd.cmd == CMD_MOVE_RIGHT)
+		{
+			DEBUG_PRINTF("Action: Move right!\n");
+			my_can_send(MOD_SEL_HW_DIR_RIGHT, CMD_MOVE_RIGHT, cmd.payload);
+		}
+		else if (cmd.cmd == CMD_MOVE_LEFT)
+		{
+			DEBUG_PRINTF("Action: Move left!\n");
+			my_can_send(MOD_SEL_HW_DIR_RIGHT, CMD_MOVE_LEFT, cmd.payload);
+		}
 	}
 }
 
@@ -306,6 +328,7 @@ static void mod_main_function()
  ******************************************************************************/
 static void mod_dir_right_function()
 {
+	static uint16_t debugMotorSpeed = 50;
 	//get command
 	command_t cmd;
 	if (dequeue_command(&cmd))
@@ -315,12 +338,13 @@ static void mod_dir_right_function()
 		{
 			if (getCalibratedFlag(MOTOR_DIR_RIGHT) == 0)
 			{
+				DEBUG_PRINTF("Motor not calibrated, ignoring command\n");
 				return;
 			}
 			int16_t angleTarget = cmd.payload - CAN_ANGLE_OFFSET;
 			motorTickTarget = angleToTick(angleTarget, MOTOR_DIR_RIGHT);
 			DEBUG_PRINTF("Action: Direction target update! %d motorTick: %d\n", angleTarget, motorTickTarget);
-			goto_pos(MOTOR_DIR_RIGHT, motorTickTarget);
+			goto_pos(MOTOR_DIR_RIGHT, motorTickTarget, 0);
 		}
 		else if (cmd.cmd == CMD_CALIBRATE_DIR_RIGHT)
 		{
@@ -330,9 +354,39 @@ static void mod_dir_right_function()
 		{
 			DEBUG_PRINTF("PING received\n");
 			set_mon_state(STATE_COMMS_CONNECTED);
-			//my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)get_my_module_id());
+			my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)get_my_module_id());
 		}
-		delay(TIMEOUT_SESSION);
+
+		// Debug commands
+		else if (cmd.cmd == CMD_INCREASE_SPEED)
+		{
+			DEBUG_PRINTF("Action: Increase speed! speed = %d\n", debugMotorSpeed);
+			debugMotorSpeed += cmd.payload;
+		}
+		else if (cmd.cmd == CMD_DECREASE_SPEED)
+		{
+			DEBUG_PRINTF("Action: Decrease speed! speed = %d\n", debugMotorSpeed);
+			if (debugMotorSpeed > cmd.payload)
+			{
+				debugMotorSpeed -= cmd.payload;
+			}
+			else
+			{
+				debugMotorSpeed = 0;
+			}
+		}
+		else if (cmd.cmd == CMD_MOVE_RIGHT)
+		{
+			uint32_t targetPos = motor_get_pos(MOTOR_DIR_RIGHT) + cmd.payload;
+			DEBUG_PRINTF("Action: Move right! target = %d, speed = %d\n", targetPos, debugMotorSpeed);
+			goto_pos(MOTOR_DIR_RIGHT, targetPos, (uint32_t)debugMotorSpeed);			
+		}
+		else if (cmd.cmd == CMD_MOVE_LEFT)
+		{
+			uint32_t targetPos = motor_get_pos(MOTOR_DIR_RIGHT) - cmd.payload;
+			DEBUG_PRINTF("Action: Move left! target = %d, speed = %d\n", targetPos, debugMotorSpeed);
+			goto_pos(MOTOR_DIR_RIGHT, targetPos, (uint32_t)debugMotorSpeed);
+		}
 	}
 }
 
@@ -350,12 +404,13 @@ static void mod_dir_left_function()
 		{
 			if (getCalibratedFlag(MOTOR_DIR_LEFT) == 0)
 			{
+				DEBUG_PRINTF("Motor not calibrated, ignoring command\n");
 				return;
 			}
 			int16_t angleTarget = cmd.payload - CAN_ANGLE_OFFSET;
 			motorTickTarget = angleToTick(angleTarget, MOTOR_DIR_LEFT);
 			DEBUG_PRINTF("Action: Direction target update! %d motorTick: %d\n", angleTarget, motorTickTarget);
-			goto_pos(MOTOR_DIR_LEFT, motorTickTarget);
+			goto_pos(MOTOR_DIR_LEFT, motorTickTarget, 0);
 		}
 		else if (cmd.cmd == CMD_CALIBRATE_DIR_LEFT)
 		{
@@ -363,13 +418,10 @@ static void mod_dir_left_function()
 		}
 		else if (cmd.cmd == CMD_COMMS_PING)
 		{
-			uint16_t id = get_my_module_id();
-			//DEBUG_PRINTF("PING received, replying, myid = %d\n",id);
+			DEBUG_PRINTF("PING received\n");
 			set_mon_state(STATE_COMMS_CONNECTED);
-			//my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)id);
-			//ping_reply();
+			my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)get_my_module_id());
 		}
-		delay(TIMEOUT_SESSION);
 	}
 }
 
@@ -401,9 +453,8 @@ static void mod_x_traction_left_function()
 		{
 			DEBUG_PRINTF("PING received\n");
 			set_mon_state(STATE_COMMS_CONNECTED);
-			// my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)get_my_module_id());
+			my_can_send((uint8_t)MOD_SEL_MCU_MAIN, (uint8_t)CMD_COMMS_PING_ACK, (uint16_t)get_my_module_id());
 		}
-		delay(TIMEOUT_SESSION);
 	}
 }
 

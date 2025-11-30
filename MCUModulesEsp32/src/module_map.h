@@ -77,6 +77,11 @@ typedef enum
     // power modules commands list
     READ_POWER_STATUS = 40,      // Read power status
 
+    // debug module commands list
+    CMD_INCREASE_SPEED = 50,   // Increase speed
+    CMD_DECREASE_SPEED = 51,   // Decrease speed
+    CMD_MOVE_RIGHT = 52,     // Move right
+    CMD_MOVE_LEFT = 53,      // Move left
 } CMD_MCU_MAIN_MODULE_ENUM_E;
 
 typedef enum

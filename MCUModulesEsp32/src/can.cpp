@@ -8,17 +8,11 @@
 
 #include <Arduino.h>
 #include "driver/twai.h"
-#include "TWAI_ISO.h"
 
 #include "can.h"
 #include "module_map.h"
 
 #include "common.h"
-
-/*************************** ISO-TP Context ********************************/
-#define CAN_ISOTP_RXBUF_SIZE 256
-IsoTpLink_t isotp_link_ctx;
-uint8_t isotp_rx_buffer[CAN_ISOTP_RXBUF_SIZE];
 
 /*************************** Global Variables ********************************/
 
@@ -26,14 +20,14 @@ command_t commandQueue[COMMAND_QUEUE_SIZE] = {0};
 volatile uint8_t queueHead = 0;
 volatile uint8_t queueTail = 0;
 
-#define CAN_RX_PIN_READER GPIO_NUM_22 
-#define CAN_TX_PIN_READER GPIO_NUM_21
+#define CAN_RX_PIN_READER GPIO_NUM_16
+#define CAN_TX_PIN_READER GPIO_NUM_17
 
 /****************************** Functions *************************************/
 
 void can_init(uint8_t moduleIdx)
 {
-    twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(GPIO_NUM_21, GPIO_NUM_22, TWAI_MODE_NORMAL);
+    twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(CAN_TX_PIN_READER, CAN_RX_PIN_READER, TWAI_MODE_NORMAL);
     twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();
     twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
     g_config.rx_queue_len = 20; g_config.tx_queue_len = 10;
@@ -46,12 +40,6 @@ void can_init(uint8_t moduleIdx)
         Serial.println("TWAI Start Failed!");
         while (1) delay(10);
     }
-    Serial.println("TWAI ISO-TP Init OK!");
-
-    // ISO-TP context setup
-    isoTp_initLink(&isotp_link_ctx, isotp_rx_buffer, sizeof(isotp_rx_buffer),
-                   1000, 1000, 1000, 1000, 0, 150, 0, 0); // timeouts and params as example
-    isoTp_setPaddingByte(&isotp_link_ctx, 0xAA);
 }
 
 /**
@@ -60,25 +48,17 @@ void can_init(uint8_t moduleIdx)
 void my_can_receive(void)
 {
     twai_message_t can_frame_rx;
-    uint16_t isotp_msg_final_len;
-    uint8_t* isotp_msg_final_buf;
 
-    // Poll CAN bus for new frame
     if (twai_receive(&can_frame_rx, pdMS_TO_TICKS(10)) == ESP_OK) {
-        // Check if this message is for this module before parsing
+        // You would no longer check for ISO-TP frame types
         uint16_t expectedId = ISO_TP_BASE_RX_ID + get_my_module_id();
-        if (can_frame_rx.identifier == expectedId) {
-            // Try to decode ISO-TP message from CAN frame
-            if (isoTp_receive(&isotp_link_ctx, &can_frame_rx, &isotp_msg_final_len, &isotp_msg_final_buf)) {
-                // Check minimum length for command and payload
-                if (isotp_msg_final_len >= 3 && isotp_msg_final_buf != NULL) {
-                    uint8_t cmd = isotp_msg_final_buf[0];
-                    uint16_t payload = (isotp_msg_final_buf[1] << 8) | isotp_msg_final_buf[2];
-                    // Sender module ID logic (customize as needed)
-                    uint8_t senderModule = (can_frame_rx.identifier >= ISO_TP_BASE_TX_ID) ? (can_frame_rx.identifier - ISO_TP_BASE_TX_ID) : 0;
-                    enqueue_command(senderModule, cmd, payload);
-                }
-            }
+
+        if (can_frame_rx.identifier == expectedId && can_frame_rx.data_length_code >= 3) {
+            uint8_t cmd = can_frame_rx.data[0];
+            uint16_t payload = (can_frame_rx.data[1] << 8) | can_frame_rx.data[2];
+            
+            // Your application logic to handle the received command
+            enqueue_command(get_my_module_id(), cmd, payload);
         }
     }
 }
@@ -88,16 +68,22 @@ void my_can_receive(void)
  */
 void my_can_send(uint8_t target_module_id, uint8_t cmd, uint16_t payload)
 {
-    uint8_t canMsg[MESSAGE_LENGTH];
-    canMsg[0] = cmd;
-    canMsg[1] = (payload >> 8) & 0xFF;
-    canMsg[2] = payload & 0xFF;
+    twai_message_t message;
+    message.identifier = ISO_TP_BASE_RX_ID + target_module_id; // Or a new ID scheme
+    message.data_length_code = 3;
+    message.data[0] = cmd;
+    message.data[1] = (payload >> 8) & 0xFF;
+    message.data[2] = payload & 0xFF;
 
-    uint16_t rxId = ISO_TP_BASE_RX_ID + target_module_id;
+    // Zero out the unused bytes for clarity
+    message.data[3] = 0;
+    message.data[4] = 0;
+    message.data[5] = 0;
+    message.data[6] = 0;
+    message.data[7] = 0;
 
-    // Use isoTp_send from the library
-    if (isoTp_send(&isotp_link_ctx, rxId, /*responseId*/ rxId, canMsg, sizeof(canMsg))) {
-        DEBUG_PRINTF("Sent cmd %d to destination %d, payload %d\n", cmd, target_module_id, payload);
+    if (twai_transmit(&message, pdMS_TO_TICKS(100)) == ESP_OK) {
+        //DEBUG_PRINTF("Sent cmd %d to destination %d, payload %d\n", cmd, target_module_id, payload);
     } else {
         DEBUG_PRINTF("Failed to send cmd %d to destination %d\n", cmd, target_module_id);
     }
